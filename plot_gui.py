@@ -16,7 +16,7 @@ cp = sns.color_palette()
 
 #%%
 
-rsi_df = pd.read_csv('/Users/geoffreysedor/gui_app/data.csv')
+rsi_df = pd.read_csv('data.csv')
 
 r = rsi_df['0'].values
 

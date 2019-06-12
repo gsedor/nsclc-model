@@ -14,6 +14,8 @@ import pandas as pd
 import seaborn as sns
 cp = sns.color_palette()
 
+from sklearn.neighbors.kde import KernelDensity
+
 #%%
 
 rsi_df = pd.read_csv('data.csv')
@@ -54,6 +56,9 @@ r = rsi_df['0'].values
 #     return wf2.predict(t)
 
 #%%
+
+""" weibull fits: """
+
 def S1(t):
     lambda_ = 0.028907
     rho_ = 0.641806
@@ -66,9 +71,7 @@ def S2(t):
     y = np.exp(-1*np.power(lambda_*t,rho_))
     return y
 
-# print(wf1.summary, wf2.summary)
 
-#%%
 
 """ exponential fits: """
 
@@ -84,7 +87,17 @@ def exp_gard(t,G):
     beta_0 = np.exp(-1*mu)
     return np.exp(-beta_0*t*np.exp(-gamma*G))
 
+def plc_gard33(t,G33):
+    """t = time in yrs, G33 = bool"""
+    if G33:
+        lc_gard33 = S1(t)
+    else:
+        lc_gard33 = S2(t)
+    return lc_gard33
+
 #%%
+
+"""ntcp functions: """
 
 def risk_p(dose):
     d = np.maximum(dose-18,0)
@@ -105,7 +118,7 @@ def risk_e(dose):
     d = np.maximum(dose-40,0)
     r = 0.026*d
     return r
-#%%
+
 def prob_esoph(dose_h):
     if dose_h < 7.5:
         r = .01/100
@@ -121,17 +134,23 @@ def prob_esoph(dose_h):
         y = (erf(t1)-erf(t2))/2
         r = np.round(y,3)
     return r
-#%%
+
 p_mce_1gy = .074
+
+def pfs_rsi(t,rval, dose):
+    lc_rsi = exp_rsi(t,rval)
+    risk_e_l = (risk_p(dose)+risk_e(dose))/100
+    risk_mce = 1+p_mce_1gy*dose/14
+    pfs = np.power(lc_rsi,risk_mce*np.exp(risk_e_l))
+    return pfs
 
 def pfs_gard(t,G, dose):
     """t = time in yrs, G = GARD"""
     lc_gard = exp_gard(t,G)
     risk_e_l = (risk_p(dose)+risk_e(dose))/100
-    risk_mce = 1+p_mce_1gy
+    risk_mce = 1+p_mce_1gy*dose/14
     pfs = np.power(lc_gard,risk_mce*np.exp(risk_e_l))
     return pfs
-
 
 def pfs_gard_man(t,G, H,L,E):
     """t = time in yrs, G = GARD"""
@@ -142,11 +161,24 @@ def pfs_gard_man(t,G, H,L,E):
     pfs = np.power(lc_gard,risk_mce*np.exp(risk_e_l))
     return pfs
 
-def pfs_rsi(t,rval, dose):
-    lc_rsi = exp_rsi(t,rval)
+def pfs_gard33(t, G33, dose):
+    """plc_gard33 = S(t) local control function w/ WB model,
+        dose = total dose"""
+
+    lc_gard33 = plc_gard33(t,G33)
     risk_e_l = (risk_p(dose)+risk_e(dose))/100
-    risk_mce = 1+p_mce_1gy
-    pfs = np.power(lc_rsi,risk_mce*np.exp(risk_e_l))
+    risk_mce = 1+p_mce_1gy*dose/14
+    pfs = np.power(lc_gard33,risk_mce*np.exp(risk_e_l))
+
+    return pfs
+
+def pfs_gard33_man(t,G33, H,L,E):
+    """t = time in yrs, G = GARD """
+    lc_gard33 = plc_gard33(t,G33)
+
+    risk_e_l = prob_pneumonitis(L)+prob_esoph(E)
+    risk_mce = 1+p_mce_1gy*H
+    pfs = np.power(lc_gard33,risk_mce*np.exp(risk_e_l))
     return pfs
 
 #%%
@@ -156,6 +188,7 @@ d = 2
 beta = 0.05
 n = 1
 alpha_tcc = (np.log(r)+beta*n*(d**2))/(-n*d)
+gard_tcc_per_nd =  (alpha_tcc+beta*d)
 rxdose_tcc = np.array(33/(alpha_tcc+beta*d))
 
 t = np.arange(0,5,.1)
@@ -163,7 +196,7 @@ rsi_interval = np.round(np.arange(0.01,.81,.01),2)
 total_dose = 60
 dose_range = np.round(np.arange(40,82,2),0)
 
-# hist trace objects:
+""" histogram & distribution trace objects: """
 
 hist_rsi = go.Histogram(x=r, nbinsx=40,histnorm='probability density',
                         opacity=.6, xaxis='x3',yaxis='y3')
@@ -173,32 +206,45 @@ hist_rxdose = go.Histogram(x=rxdose_tcc,nbinsx=80,
                            opacity=.6, marker = {'color':'rgb(.1,.6,.3)'},
                            xaxis='x1',yaxis='y1')
 
+bw = 1.2*rxdose_tcc.std()*np.power(rxdose_tcc.size,-1/5)
+kde = KernelDensity(kernel='gaussian', bandwidth=bw)
+kde.fit(rxdose_tcc.reshape(-1,1))
+xvals = np.arange(0,150,.1)
+log_dens=kde.score_samples(xvals.reshape(-1,1))
+kdens=np.exp(log_dens)
+
+dist_rxdose = go.Scatter(x=xvals,y=kdens,
+                xaxis='x1',yaxis='y1',
+                line=dict(color='rgb(.1,.6,.3)'))
+
 wb1 = dict(x=t,y=S1(t),xaxis='x2',yaxis='y2',
            line = dict(color='rgb(.5,.5,.5)'))
 wb2 = dict(x=t,y=S2(t),xaxis='x2',yaxis='y2',
            line = dict(color='rgb(.5,.5,.5)'))
 
 """   plotting layout:   """
-
+#%%
 rsi_range_x = [0, np.max(r)]
 rsi_range_y = [0,6]
-rxdose_range_x=[0,140]
-rxdose_range_y=[0,0.03]
+gard_range_x=[0,130]
+gard_range_y=[0,0.03]
 
 whole_plot_width = 900
 
 layout = go.Layout(
     xaxis1=dict(
-        title='Rx Dose',
+        title='GARD \n(Prescription Dose Gy)',
         zeroline=True,
-        domain=[0, 0.45],range=rxdose_range_x,anchor='y1',
+        domain=[0, 0.45],range=gard_range_x,
+        anchor='y1',
         tickmode='array',
         tickvals = list(range(0,150,10)),
         ticktext= [0,'',20,'',40,'',60,'',80,'',100,'',120,'',''],
         ticklen=4),
     yaxis1=dict(
         showticklabels=False,
-        domain=[0, 1],range=rxdose_range_y,anchor='x1',
+        domain=[0, 1],range=gard_range_y,
+        anchor='x1',
         showgrid=False),
     xaxis2=dict(
         title='Time (yrs)',
@@ -206,12 +252,17 @@ layout = go.Layout(
         anchor='y2',
         showgrid = False),
     yaxis2=dict(
+        title = 'Probability',
         domain=[0, 1],range=[0, 1],
         anchor='x2',
         showgrid=False),
     xaxis3=dict(
         zeroline=True,
-        domain=[0.25, 0.45],range=rsi_range_x,anchor='y3'),
+        domain=[0.25, 0.45],range=rsi_range_x,anchor='y3',
+        tickmode='array',
+        tickvals = list(np.arange(0,.9,.1)),
+        ticktext= [0,'',.2,'',.4,'',.6,'',.8],
+        ticklen=3),
     yaxis3=dict(
         showticklabels=False,
         domain=[0.65, 1],range = rsi_range_y,anchor='x3',
@@ -274,7 +325,7 @@ app.layout = html.Div([
                 id = 'rsi-slider',
                 min=rsi_interval.min(),
                 max = rsi_interval.max(),
-                value = rsi_interval.min(),
+                value = 0.20,
                 marks = marks,
                 step = 0.01,
                 updatemode='drag'),
@@ -288,126 +339,163 @@ app.layout = html.Div([
                 id='dose-slider',
                 min=dose_range.min(),
                 max=dose_range.max(),
-                value = dose_range.min(),
+                value = 60,
                 marks = {str(k):str(k) for k in dose_range},
                 step=1,
                 updatemode='drag'
             )
-        ], style = {'width':500, 'marginLeft':80, 'marginTop':20, 'fontSize':14,'display': 'inline-block'}),
+        ], style = {'width':450, 'marginLeft':80, 'marginTop':20, 'fontSize':14,'display': 'inline-block'}),
 
-        html.Div([
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.Div(
+                            dcc.RadioItems(
+                                id = 'dose-entry-method',
+                                options=[{'label': 'Use Total Dose', 'value': 'auto'},
+                                    {'label': 'Manually Enter', 'value': 'manual'}],
+                                value='auto'
+                            ), style={'width':120,'fontSize':14}
+                        ),
 
-            html.Div(
-                dcc.RadioItems(
-                    id = 'dose-entry-method',
-                    options=[{'label': 'Use Total Dose', 'value': 'auto'},
-                        {'label': 'Manually Enter', 'value': 'manual'}],
-                    value='auto'
-                ), style={'width':120,'fontSize':14}
-            ),
+                        html.Div([
+                            dcc.Input(
+                                id = 'heart-dose',
+                                placeholder='Enter heart dose',
+                                type='number',
+                                value=''
+                            ),
+                            dcc.Input(
+                                id = 'lung-dose',
+                                placeholder='Enter lung dose',
+                                type='number',
+                                value=''
+                            ),
+                            dcc.Input(
+                                id = 'esoph-dose',
+                                placeholder='Enter esophagus dose',
+                                type='number',
+                                value=''
+                            )
+                        ], style={'width':80,'display': 'inline-block','fontSize':14,'margin-top':10}),
 
-            html.Div([
-                dcc.Input(
-                    id = 'heart-dose',
-                    placeholder='Enter heart dose',
-                    type='number',
-                    value=''
+                        html.Button(id='submit-button', n_clicks=0, children='Submit'),
+
+                        html.Div(id='intermediate-value', style={'display': 'none'})
+                    ],
+                    style={'width':'45%','display':'inline-block'}
                 ),
-                dcc.Input(
-                    id = 'lung-dose',
-                    placeholder='Enter lung dose',
-                    type='number',
-                    value=''
-                ),
-                dcc.Input(
-                    id = 'esoph-dose',
-                    placeholder='Enter esophagus dose',
-                    type='number',
-                    value=''
-                )
-            ], style={'width':80,'display': 'inline-block','fontSize':14,'margin-top':10}),
 
-            html.Button(id='submit-button', n_clicks=0, children='Submit')
+                html.Div(
+                    [
+                        html.Div(id='heart-dose-output', style={'margin-top':15}),
+                        html.Div(id='lung-dose-output', style={'margin-top':20}),
+                        html.Div(id='esoph-dose-output', style={'margin-top':20})
+                    ],
+                    style={'width':'45%','float':'right','display':'inline-block','margin-top':50,'fontSize':14})
+            ],
+            style={'width':350,'float':'right','display': 'inline-block','margin-left':20, 'margin-top':20}
+        )
 
-        ], style={'width':120,'float':'right','display': 'inline-block','margin-right':80, 'margin-top':20})
-
-    ],style={'width':850})
+    ], style={'width':900})
 
 ],style={'margin-top':20})
+
 
 @app.callback(
     Output('graph','figure'),
     [Input('rsi-slider','value'),
     Input('dose-slider','value'),
-    Input('dose-entry-method','value'),
     Input('submit-button', 'n_clicks')],
     [State('heart-dose','value'),
     State('lung-dose','value'),
-    State('esoph-dose','value')]
+    State('esoph-dose','value'),
+    State('dose-entry-method','value')]
 )
 
-def update_figure(selected_rsi,selected_dose,selected_entry_method,n_clicks, hdose,ldose,edose):
+def update_figure(selected_rsi,selected_dose,n_clicks, hdose,ldose,edose,selected_entry_method):
     rval = selected_rsi
     alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
     rxdose_val = 33/(alpha_val+beta*d)
     dose_val = selected_dose
     gard_val = dose_val*(alpha_val+beta*d)
+    G33 = True if (dose_val>=rxdose_val) else False
 
-    traces = [hist_rsi,hist_rxdose,wb1,wb2]
-    set_vis = False # attribute for plc-rsi curve
+    # gard_tcc = gard_tcc_per_nd*dose_val
+    # hist_gard = go.Histogram(x=gard_tcc,nbinsx=60,histnorm='probability density',opacity=.6, marker = {'color':'rgb(.1,.6,.3)'},xaxis='x1',yaxis='y1')
 
+    traces = [hist_rsi,hist_rxdose, dist_rxdose, wb1, wb2]
 
     ticker_color = 'rgb(.92,.5,.1)'
-
     traces.append(go.Scatter(
         xaxis='x3',yaxis='y3',
         line = {'color':ticker_color},
         y=np.linspace(0,6,50),
-        x=np.full((50),rval))
-    )
+        x=np.full((50),rval)))
+
     traces.append(go.Scatter(
         name = 'rxdose',
         xaxis='x1', yaxis='y1',
         line = {'color':ticker_color},
-        y=np.linspace(0,0.03,50),
-        x=np.full((50),rxdose_val))
-    )
+        y=np.linspace(0,.03,50),
+        x=np.full((50),rxdose_val)))
+
     traces.append(go.Scatter(
         name = 'selected dose',
         xaxis='x1', yaxis='y1',
         line = {'color':'rgb(.9,.4,.45)'},
-        y=np.linspace(0,0.03,50),
-        x=np.full((50),dose_val))
-    )
-    traces.append(go.Scatter(
-        name='plc_rsi',
-        xaxis='x2',yaxis='y2',
-        line = {'color':ticker_color},
-        x=t,y=exp_rsi(t,rval),
-        visible=set_vis)
-    )
+        y=np.linspace(0,.03,50),
+        x=np.full((50),dose_val)))
+
+    if n_clicks>0:
+        outcome_curve_vis = True
+    else:
+        outcome_curve_vis = False
+
+
+    if selected_entry_method == 'auto':
+        penalized_version = pfs_gard33(t,G33,dose_val)
+    elif (selected_entry_method == 'manual'):
+        penalized_version= pfs_gard33_man(t,G33,hdose,ldose,edose)
 
     traces.append(go.Scatter(
-        name='plc_gard',
+        name='local-control-gard33',
         xaxis='x2',
         yaxis='y2',
         line = dict(color='rgb(.8,.1,.1)'),
         x=t,
-        y=exp_gard(t,gard_val))
-    )
-
-    if selected_entry_method == 'auto':
-        penalized_version = pfs_gard(t,gard_val,dose_val)
-    elif selected_entry_method == 'manual':
-        penalized_version= pfs_gard_man(t,gard_val,hdose,ldose,edose)
-
+        y=plc_gard33(t,G33),
+        visible=True))
     traces.append(go.Scatter(
-        name='penalized-GARD',
+        name='penalized-GARD33',
         xaxis='x2',yaxis='y2',
         line = {'color':'rgb(.4,.1,.5)'},
         x=t,
-        y=penalized_version)
-    )
+        y=penalized_version,
+        visible=outcome_curve_vis))
+
+    # traces.append(go.Scatter(
+    #     name='plc_rsi',
+    #     xaxis='x2',yaxis='y2',
+    #     line = {'color':ticker_color},
+    #     x=t,y=exp_rsi(t,rval),
+    #     visible=False))
+    # traces.append(go.Scatter(
+    #     name='plc_gard',
+    #     xaxis='x2',
+    #     yaxis='y2',
+    #     line = dict(color='rgb(.8,.1,.1)'),
+    #     x=t,
+    #     y=exp_gard(t,gard_val),
+    #     visible=False))
+    # traces.append(go.Scatter(
+    #     name='penalized-GARD',
+    #     xaxis='x2',yaxis='y2',
+    #     line = {'color':'rgb(.4,.1,.5)'},
+    #     x=t,
+    #     y=penalized_version,
+    #     visible=False))
 
     return {
         'data':traces,
@@ -423,16 +511,25 @@ def update_figure(selected_rsi,selected_dose,selected_entry_method,n_clicks, hdo
 def update_slider_text(selected_rsi,selected_dose):
     return 'RSI: {}'.format(selected_rsi), 'Total Dose: {}'.format(selected_dose)
 
-# @app.callback(
-#     Output('heart-dose','disabled'),
-#     Input('dose-entry-method','value'))
-#
-# def update_input_boxes(selected_entry_method):
-#     if selected_entry_method == 'auto':
-#         access = 'False'
-#     if selected_entry_method == 'manual':
-#         access = 'True'
-#     return {'disabled':access}
+@app.callback(
+    [Output('heart-dose-output','children'),
+    Output('lung-dose-output','children'),
+    Output('esoph-dose-output','children')],
+    [Input('dose-slider','value'),
+    Input('dose-entry-method','value'),
+    Input('submit-button', 'n_clicks')],
+    [State('heart-dose','value'),
+    State('lung-dose','value'),
+    State('esoph-dose','value')])
+
+def update_site_dose_text(total_dose, entry_method, n_clicks, hdose, ldose, edose):
+    if entry_method == 'auto':
+        h = np.round(total_dose/14,1)
+        l = np.round(total_dose/8.5,1)
+        e = np.round(total_dose/4,1)
+        return ('{} Gy'.format(h),'{} Gy'.format(l),'{} Gy'.format(e))
+    elif entry_method == 'manual':
+        return ('{} Gy'.format(hdose),'{} Gy'.format(ldose),'{} Gy'.format(edose))
 
 if __name__ == '__main__':
     app.run_server(debug=True)

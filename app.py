@@ -709,12 +709,13 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
     if all_doses_entered:
         pfs_array = pfs_gard33_man(t,G33,hdose,ldose,edose)
         traces.append(go.Scatter(
-            name='penalized-GARD33',
+            name='Predicted-EFS',
             # line = {'color':'rgb(.4,.1,.5)'},
             line = {'color':'rgb(.8,.2,.1)'},
             x=t,
             y=pfs_array,
-            visible=True))
+            visible=True,
+            showlegend=True))
         tb_output.append(np.round(pfs_array[49],2))
     else:
         tb_output.append('')

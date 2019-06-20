@@ -324,16 +324,16 @@ layout_outcome_curves = go.Layout(
     height=500,
     margin=go.layout.Margin(
         l=70,
-        r=30,
-        b=60,
-        t=50,
+        r=40,
+        b=70,
+        t=60,
         pad=.1),
     legend=dict(x=.1,y=.1),
     paper_bgcolor='rgb(.97,.97,.97)',
     # plot_bgcolor = 'rgb(250,250,250)',
     # paper_bgcolor='rgb(20,60,110)',
     # font=dict(color='rgb(230,230,230)'),
-    title=go.layout.Title(text='[Title Here...]',x=0.18,yref='container',y=.95)
+    title=go.layout.Title(text='[Title Here...]',x=0.18,yref='container',y=.93)
 )
 
 #%%
@@ -405,7 +405,7 @@ app.layout = html.Div(
                         ], style={'margin-top':10}
                     )
                 ], style={'float':'right','height':500,'margin-right':30,
-                          'border-style':'solid',
+                          'border-style':'hidden',
                           'border-width':2,
                           'border-color':'rgb(120,120,120)'}
             )
@@ -574,48 +574,9 @@ app.layout = html.Div(
                         ], style={'fontSize':13})
                     ]),
 
-                    html.Br(),
-                    html.Br(),
-                    #
-                    # html.Div(id='radio-container', children=[
-                    #     dcc.RadioItems(
-                    #         id = 'dose-entry-method',
-                    #         options=[{'label': 'Use Total Dose', 'value': 'auto'},
-                    #             {'label': 'Manually Enter', 'value': 'manual'}],
-                    #         labelStyle={'display': 'inline-block','fontSize':14}
-                    #     )
-                    # ]),
-                    # html.Div(id='inputs-container', children=[
-                    #     dcc.Input(
-                    #         id = 'heart-dose',
-                    #         placeholder='Heart dose (Gy)',
-                    #         type='number',
-                    #         value=''),
-                    #     dcc.Input(
-                    #         id = 'lung-dose',
-                    #         placeholder='Lung dose (Gy)',
-                    #         type='number',
-                    #         value=''),
-                    #     dcc.Input(
-                    #         id = 'esoph-dose',
-                    #         placeholder='Esophagus dose (Gy)',
-                    #         type='number',
-                    #         value='')
-                    # ], style={'display':'inline-block','fontSize':14,'margin-top':10}),
-                    # html.Div(
-                    #     html.Button(id='submit-button',
-                    #         n_clicks=0,
-                    #         children='Submit'),
-                    #     style={'margin-top':10,'paddingLeft':'10px'}
-                    # ),
-                    # dcc.ConfirmDialog(
-                    #     id='confirm',
-                    #     message='Values not entered for all tissue sites'
-                    # )
-
             ], style={'width':500,'margin-left':10,'margin-right':40,'float':'right'})
 
-        ], style={'width':1050, 'margin-left':50,'margin-top':10, 'display':'block'})
+        ], style={'width':1050, 'margin-left':50,'margin-top':5, 'display':'block'})
 
     ], style={'margin-top':40}
 
@@ -930,44 +891,7 @@ def  reset_radio_buttons(n_clicks):
 
 
 
-# @app.callback(
-#     [Output('heart-dose','disabled'),
-#     Output('lung-dose','disabled'),
-#     Output('esoph-dose','disabled')],
-#     [Input('dose-entry-method','value')]
-# )
-#
-# def update_dose_entry_editable(entry_method):
-#     if entry_method == 'auto':
-#         disabled = True
-#     elif entry_method == 'manual':
-#         disabled = False
-#     else:
-#         disabled = False
-#     return [disabled]*3
-#
 
-
-
-# @app.callback(
-#     [Output('heart-dose-output','children'),
-#     Output('lung-dose-output','children'),
-#     Output('esoph-dose-output','children')],
-#     [Input('dose-slider','value'),
-#     Input('dose-entry-method','value'),
-#     Input('submit-button', 'n_clicks')],
-#     [State('heart-dose','value'),
-#     State('lung-dose','value'),
-#     State('esoph-dose','value')])
-#
-# def update_site_dose_text(total_dose, entry_method, n_clicks, hdose, ldose, edose):
-#     if entry_method == 'auto':
-#         h = np.round(total_dose/14,1)
-#         l = np.round(total_dose/8.5,1)
-#         e = np.round(total_dose/4,1)
-#         return ('{} Gy'.format(h),'{} Gy'.format(l),'{} Gy'.format(e))
-#     elif entry_method == 'manual':
-#         return ('{} Gy'.format(hdose),'{} Gy'.format(ldose),'{} Gy'.format(edose))
 
 if __name__ == '__main__':
     app.run_server(debug=True)

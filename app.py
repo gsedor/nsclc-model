@@ -69,18 +69,18 @@ wb2 = dict(x=t,y=S2(t),xaxis='x2',yaxis='y2',
 
 
 """ exponential fits: """
-
-def exp_rsi(t,X):
-    mu = 4.11
-    gamma =  -6.55
-    beta_0 = np.exp(-1*mu)
-    return np.exp(-beta_0*t*np.exp(-gamma*X))
-
-def exp_gard(t,G):
-    mu = 0.362
-    gamma =  0.048
-    beta_0 = np.exp(-1*mu)
-    return np.exp(-beta_0*t*np.exp(-gamma*G))
+#
+# def exp_rsi(t,X):
+#     mu = 4.11
+#     gamma =  -6.55
+#     beta_0 = np.exp(-1*mu)
+#     return np.exp(-beta_0*t*np.exp(-gamma*X))
+#
+# def exp_gard(t,G):
+#     mu = 0.362
+#     gamma =  0.048
+#     beta_0 = np.exp(-1*mu)
+#     return np.exp(-beta_0*t*np.exp(-gamma*G))
 
 def plc_gard33(t,G33):
     """t = time in yrs, G33 = bool"""
@@ -189,8 +189,6 @@ bar_rsi = go.Bar(name = 'RSI',
                 opacity=.4,
                 xaxis='x2',yaxis='y2')
 
-# bins_bins = list(np.arange(21,141,6))+[240]
-# bins_bins = list(np.arange(22,131,4))+[240]
 bins_rxdose = list(np.arange(21,141,5))+[240]
 rxdose_hist_obj = np.histogram(rxdose_tcc,bins=bins_rxdose,density=True)
 
@@ -574,7 +572,40 @@ app.layout = html.Div(
                         ], style={'fontSize':13})
                     ]),
 
-            ], style={'width':500,'margin-left':10,'margin-right':40,'float':'right'})
+            ], style={'width':500,'margin-left':10,'margin-right':40,'float':'right'}
+             ),
+             # draft of alternate output table #
+            # html.Div([
+            #     html.Table(
+            #         [
+            #             html.Thead([
+            #                 html.Tr(html.Th('Outcomes',colSpan=2,style={'background-color':'rgb(240,240,240)',
+            #                                                             'textAlign':'center',
+            #                                                             'padding':5}))
+            #             ], style={'height':'20px'}),
+            #             html.Colgroup([
+            #                 html.Col(style={'backgroundColor':'rgb(240,240,240)','width':120}),
+            #                 html.Col(style={'width':120})
+            #             ]),
+            #             html.Tbody([
+            #                 html.Tr([html.Th('RSI',style={'paddingLeft':10}), html.Td(id='____rsi-output',style={'textAlign':'center'})]),
+            #                 html.Tr([html.Th('Dose',style={'paddingLeft':10}), html.Td(id='_____dose-output',style={'textAlign':'center'})]),
+            #                 html.Tr([html.Th('RxDose',style={'paddingLeft':10}),html.Td(id='______rxdose-output',style={'textAlign':'center'})]),
+            #                 html.Tr([html.Th('GARD (Tx)',style={'paddingLeft':10}),html.Td(id='_____gard-output',style={'textAlign':'center'})]),
+            #
+            #                 html.Tr(html.Th('Normal Tissue Doses',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
+            #                 html.Tr([html.Th('Heart',style={'paddingLeft':10}), html.Td(id='_____heart-dose-output',style={'textAlign':'center'})]),
+            #                 html.Tr([html.Th('Lung',style={'paddingLeft':10}), html.Td(id='_____lung-dose-output',style={'textAlign':'center'})]),
+            #                 html.Tr([html.Th('Esophagus',style={'paddingLeft':10}), html.Td(id='_____esoph-dose-output',style={'textAlign':'center'})]),
+            #
+            #                 html.Tr(html.Th('Outcomes',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
+            #                 html.Tr([html.Th('5-yr Predicted EFS',style={'padding':10}), html.Td(id='_____pefs-output',style={'textAlign':'center'})])
+            #
+            #             ],style={'fontSize':13})
+            #         ], style={'margin-top':10}
+            #     )
+            # ])
+            # end of draft of table  #
 
         ], style={'width':1050, 'margin-left':50,'margin-top':5, 'display':'block'})
 
@@ -592,6 +623,8 @@ app.layout = html.Div(
 def update_slider_text(selected_rsi,selected_dose):
     return 'RSI: {}'.format(selected_rsi), 'Total Dose: {}'.format(selected_dose)
 
+
+""" ********************* update hist plots ********************* """
 @app.callback(
     Output('histograms','figure'),
     [Input('rsi-slider','value'),
@@ -637,7 +670,11 @@ def update_hist_figures(selected_rsi,selected_dose):
         'data':traces,
         'layout':layout_hists
     }
+"""----------------------------------------------------------------"""
 
+
+
+""" *************** add rsi, gard, dose to output table *************** """
 @app.callback([Output('rsi-output','children'),
                Output('dose-output','children'),
                Output('rxdose-output','children'),
@@ -645,7 +682,6 @@ def update_hist_figures(selected_rsi,selected_dose):
                [Input('rsi-slider','value'),
                 Input('dose-slider','value')]
 )
-
 def update_output_table_rsi_gard(selected_rsi,selected_dose):
     rval = np.round(selected_rsi,2)
     alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
@@ -655,8 +691,11 @@ def update_output_table_rsi_gard(selected_rsi,selected_dose):
     G33 = True if (dose_val>=rxdose_val) else False
 
     return rval, dose_val, rxdose_val, gard_val
+"""------------------------------------------------------------------"""
 
-"""----------------------------------------------------------------------"""
+
+""" ********************* plot outcome curve *********************
+------------------------------------------------------------------"""
 @app.callback([Output('outcome-curves','figure'),
               Output('pefs-output','children')],
               [Input('rsi-slider','value'),
@@ -675,30 +714,12 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
 
     traces = []
     tb_output = []
-    # if (n_clicks > 0) & (entry_method=='manual'):
-    #     normal_tissue_doses = np.array([hdose,ldose,edose])
-    #     display_warning = np.any(normal_tissue_doses=='')
-    # else:
-    #     display_warning = False
-
     normal_tissue_doses = np.array([hdose,ldose,edose])
 
     # if entry_method == 'auto':
     #     penalized_version = pfs_gard33(t,G33,dose_val)
-    #     traces.append(go.Scatter(
-    #         name='penalized-GARD33',
-    #         line = {'color':'rgb(.4,.1,.5)'},
-    #         x=t,
-    #         y=penalized_version,
-    #         visible=True))
-    # elif (entry_method == 'manual') & (display_warning==False):
+    # elif (entry_method == 'manual'):
     #         penalized_version= pfs_gard33_man(t,G33,hdose,ldose,edose)
-    #         traces.append(go.Scatter(
-    #             name='penalized-GARD33',
-    #             line = {'color':'rgb(.4,.1,.5)'},
-    #             x=t,
-    #             y=penalized_version,
-    #             visible=True))
 
     normal_tissue_doses = np.array([hdose,ldose,edose])
     if (np.any(normal_tissue_doses=='')) or (np.any(normal_tissue_doses==None)):
@@ -717,24 +738,25 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
             visible=True,
             showlegend=True))
         tb_output.append(np.round(pfs_array[49],2))
+        vis=True
     else:
         tb_output.append('')
+        vis=False
 
     traces.append(go.Scatter(
-        name='local-control-gard33',
+        name='Predicted-LC',
         line = dict(color='rgb(.4,.1,.5)'),
         x=t,
         y=plc_gard33(t,G33),
-        visible=False))
+        visible=vis,
+        showlegend=True))
 
     return [{'data':traces,'layout':layout_outcome_curves}] + tb_output
-"""----------------------------------------------------------------------"""
+"""------------------------------------------------------------------"""
 
 
-
-
-
-"""----------------------------------------------------------------------"""
+""" ********************* add doses output table *********************
+----------------------------------------------------------------------"""
 @app.callback([Output('heart-dose-output','children'),
                Output('lung-dose-output','children'),
                Output('esoph-dose-output','children')],
@@ -744,9 +766,7 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
                  Input('entry-method-esoph','value'),
                  Input('heart-dose-input','value'),
                  Input('lung-dose-input','value'),
-                 Input('esoph-dose-input','value')]
-)
-
+                 Input('esoph-dose-input','value')])
 def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entry_method, hdose, ldose, edose):
 
     dose_val = selected_dose
@@ -764,9 +784,10 @@ def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entr
             site_dose_outputs.append('')
 
     return site_dose_outputs
-"""----------------------------------------------------------------------"""
+"""--------------------------------------------------------"""
 
-"""-----------------------reset dose inputs----------------------------"""
+"""***************************** reset dose inputs ***************************
+------------------------------------------------------------------------------"""
 @app.callback([Output('heart-dose-input','value'),
                Output('lung-dose-input','value'),
                Output('esoph-dose-input','value')],
@@ -796,7 +817,8 @@ def reset_dose_input(h_type,l_type,e_type,h_nblur,h_nsubmit,h_cur_val,l_nblur,l_
 
 
 
-""" -------------- update disable property of dose inputs -------------- """
+""" *************** update disable property of dose inputs ***************** """
+
 @app.callback([Output('heart-dose-input','disabled'),
                Output('lung-dose-input','disabled'),
                Output('esoph-dose-input','disabled')],
@@ -813,7 +835,8 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
 """----------------------------------------------------------------------"""
 
 
-"""----------------entry method-apply to all sites----------------------"""
+""" ********************* entry method-apply to all sites ********************* """
+
 @app.callback(
     [Output('entry-method-heart','value'),
      Output('entry-method-lung','value'),
@@ -823,10 +846,7 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
      Output('esoph_radio-table-cell','hidden'),
      Output('h-repl-radio','children'),Output('h-repl-radio','hidden'),
      Output('l-repl-radio','children'),Output('l-repl-radio','hidden'),
-     Output('e-repl-radio','children'),Output('e-repl-radio','hidden'),
-
-
-                    ],
+     Output('e-repl-radio','children'),Output('e-repl-radio','hidden')],
     [Input('apply-all','value')])
 
 def update_all_dose_radios(entry_method_all):

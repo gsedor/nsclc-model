@@ -48,6 +48,14 @@ def construct_kde(array, bandwidth=None):
     kdens=np.exp(log_dens)
     return x,kdens
 
+def cumulative_hist(hist_obj):
+    counts = hist_obj[0]
+    cdf_hist_obj = np.zeros(len(counts))
+    total_sum = np.sum(counts)
+    for i in range(len(counts)):
+        cdf_hist_obj[i]  = np.sum(counts[:i])/total_sum
+    return cdf_hist_obj,hist_obj[1]
+
 """ weibull fits: """
 
 def S1(t):
@@ -340,7 +348,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-import dash_table
+
 
 #%%
 
@@ -388,11 +396,11 @@ app.layout = html.Div(
                             html.Tbody([
                                 html.Tr([html.Th('RSI',style={'paddingLeft':10}), html.Td(id='rsi-output',style={'textAlign':'center'})]),
                                 html.Tr([html.Th('Dose',style={'paddingLeft':10}), html.Td(id='dose-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('RxDose',style={'paddingLeft':10}),html.Td(id='rxdose-output',style={'textAlign':'center'})]),
+                                html.Tr([html.Th('RxRSI',style={'paddingLeft':10}),html.Td(id='rxdose-output',style={'textAlign':'center'})]),
                                 html.Tr([html.Th('GARD (Tx)',style={'paddingLeft':10}),html.Td(id='gard-output',style={'textAlign':'center'})]),
 
                                 html.Tr(html.Th('Normal Tissue Doses',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
-                                html.Tr([html.Th('Heart',style={'paddingLeft':10}), html.Td(id='heart-dose-output',style={'textAlign':'center'})]),
+                                html.Tr([html.Th(['Heart'],style={'paddingLeft':10}), html.Td(id='heart-dose-output',style={'textAlign':'center'})]),
                                 html.Tr([html.Th('Lung',style={'paddingLeft':10}), html.Td(id='lung-dose-output',style={'textAlign':'center'})]),
                                 html.Tr([html.Th('Esophagus',style={'paddingLeft':10}), html.Td(id='esoph-dose-output',style={'textAlign':'center'})]),
 
@@ -441,7 +449,26 @@ app.layout = html.Div(
                             updatemode='drag'
                         )
                     )
-                ], style = {'fontSize':14})
+                ], style = {'fontSize':14}),
+
+                html.Div(
+                    dcc.Graph(id='gard-dose-plot'),
+                    style={'display':'inline-block',
+                           'border-style':'solid',
+                           'border-width':1,
+                           'border-color':'rgb(120,120,120)',
+                           'marginTop':50}
+                ),
+                html.Div(
+                    dcc.Graph(id='cdf-hist-plot'),
+                    style={'display':'inline-block',
+                           'border-style':'solid',
+                           'border-width':1,
+                           'border-color':'rgb(120,120,120)',
+                           'marginTop':20}
+                )
+
+
             ], style={'width':450,'display':'inline-block'}),
 
             # bottom right
@@ -461,7 +488,7 @@ app.layout = html.Div(
                             html.Col(style={'width':80,'backgroundColor':'rgb(240,240,240)'}),
                             html.Col(style={'width':90}),
                             html.Col(style={'width':100}),
-                            html.Col(style={'width':100})
+                            html.Col(style={'width':115})
                         ]),
                         html.Tbody([
                             html.Tr([
@@ -495,7 +522,7 @@ app.layout = html.Div(
                             ),
 
                             html.Tr([
-                                html.Th('Heart',style={'paddingLeft':'10px'}),
+                                html.Th(['Heart',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
 
                                 html.Td([
                                     html.Div(id='heart_radio-table-cell',children=[
@@ -510,21 +537,24 @@ app.layout = html.Div(
                                     html.Div(id='h-repl-radio',hidden=True)
                                 ],colSpan=2),
 
-                                html.Td(id='heart_input-table-cell',children=[
-                                    dcc.Input(id = 'heart-dose-input',
-                                              placeholder='dose (Gy)',
-                                              type='number',value='',
-                                              n_blur=0, n_submit=0,
-                                              debounce=True,
-                                              min=0.0, max=50.0, step=1,
-                                              style={'width':'100px','display':'inline-block'}),
+                                html.Td([
+                                    html.Div(id='heart_input-container',children=[
+                                        dcc.Input(id = 'heart-dose-input',
+                                                  placeholder='% Total Dose',
+                                                  type='number',value='',
+                                                  n_blur=0, n_submit=0,
+                                                  debounce=True,
+                                                  min=0.0, max=100.0, step=1,
+                                                  style={'width':'100px','display':'inline-block'})
+                                    ], hidden=True),
+                                    html.Div(id='heart-default-percent',hidden=True)
                                 ], style={'paddingRight':15})
                             ]),
 
                             html.Tr([
-                                html.Th('Lung',style={'paddingLeft':'10px'}),
+                                html.Th(['Lung',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
                                 html.Td([
-                                    html.Div(id='lung_radio-table-cell',children=[
+                                    html.Div(id='lung_radio-container',children=[
                                         dcc.RadioItems(id = 'entry-method-lung',
                                                       options=[{'label': '', 'value': 'auto'},
                                                       {'label': '', 'value': 'manual'}],
@@ -535,21 +565,24 @@ app.layout = html.Div(
                                     html.Div(id='l-repl-radio', hidden=True)
                                 ], colSpan=2),
 
-                                html.Td(id='lung_input-table-cell',children=[
-                                    dcc.Input(id = 'lung-dose-input',
-                                              placeholder='dose (Gy)',
-                                              type='number',value='',
-                                              debounce=True,
-                                              min=0.0, max=50.0, step=1,
-                                              n_blur=0, n_submit=0,
-                                              style={'width':'100px','display':'inline-block'})
+                                html.Td([
+                                    html.Div(id='lung_input-container',children=[
+                                        dcc.Input(id = 'lung-dose-input',
+                                                  placeholder='% Total Dose',
+                                                  type='number',value='',
+                                                  debounce=True,
+                                                  min=0.0, max=100.0, step=1,
+                                                  n_blur=0, n_submit=0,
+                                                  style={'width':'100px','display':'inline-block'})
+                                    ], hidden=True),
+                                    html.Div(id='lung-default-percent',hidden=True)
                                 ])
 
                             ]),
                             html.Tr([
-                                html.Th('Esophagus',style={'paddingLeft':'10px'}),
+                                html.Th(['Esophagus',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
                                 html.Td([
-                                    html.Div(id='esoph_radio-table-cell',children=[
+                                    html.Div(id='esoph_radio-container',children=[
                                         dcc.RadioItems(id = 'entry-method-esoph',
                                                       options=[{'label': '', 'value': 'auto'},
                                                       {'label': '', 'value': 'manual'}],
@@ -559,14 +592,17 @@ app.layout = html.Div(
                                     ]),
                                     html.Div(id='e-repl-radio',hidden=True)
                                 ], colSpan=2),
-                                html.Td(id='esoph_input-table-cell',children=[
-                                    dcc.Input(id = 'esoph-dose-input',
-                                              placeholder='dose (Gy)',
-                                              type='number', value='',
-                                              debounce=True,
-                                              min=0.0, max=50.0, step=1,
-                                              n_blur=0, n_submit=0,
-                                              style={'width':'100px','display':'inline-block'})
+                                html.Td([
+                                    html.Div(id='esoph_input-container',children=[
+                                        dcc.Input(id = 'esoph-dose-input',
+                                                  placeholder='% Total Dose',
+                                                  type='number', value='',
+                                                  debounce=True,
+                                                  min=0.0, max=100.0, step=1,
+                                                  n_blur=0, n_submit=0,
+                                                  style={'width':'100px','display':'inline-block'})
+                                    ], hidden=True),
+                                    html.Div(id='esoph-default-percent',hidden=True)
                                 ])
                             ])
                         ], style={'fontSize':13})
@@ -621,7 +657,7 @@ app.layout = html.Div(
     Input('dose-slider','value')])
 
 def update_slider_text(selected_rsi,selected_dose):
-    return 'RSI: {}'.format(selected_rsi), 'Total Dose: {}'.format(selected_dose)
+    return 'RSI: {}'.format(np.round(selected_rsi,2)), 'Treatment Dose: {} (Gy)'.format(selected_dose)
 
 
 """ ********************* update hist plots ********************* """
@@ -673,6 +709,261 @@ def update_hist_figures(selected_rsi,selected_dose):
 """----------------------------------------------------------------"""
 
 
+""" ********************* update gard-dose plot ********************* """
+@app.callback(
+    Output('gard-dose-plot','figure'),
+    [Input('rsi-slider','value'),
+    Input('dose-slider','value')]
+)
+def update_gard_dose_figure(selected_rsi,selected_dose):
+    rsi_i = selected_rsi
+    d = 2
+    beta = 0.05
+    n = 1
+    alpha_i = (np.log(rsi_i)+beta*n*(d**2))/(-n*d)
+    gard_nd_i = alpha_i+beta*d
+
+    dose = np.arange(0,102,2)
+    gard_i=gard_nd_i*dose
+
+    max_y = 80
+
+    trace3=go.Scatter(
+        x=dose,
+        y=gard_i,
+        line={'color':'rgb(20,20,20)'}
+    )
+    trace1 = go.Scatter(
+        x=dose,
+        y=np.full(shape=len(dose),fill_value=33),
+        # line=dict(color='rgb(220,60,60)'),
+        line=dict(color='rgb(250,160,140)'),
+        mode= 'lines',
+        stackgroup='one'
+    )
+    trace2 = go.Scatter(
+        x=dose,
+        y=np.full(shape=len(dose),fill_value=max_y-33),
+        line=dict(color='rgb(120,190,250)'),
+        mode= 'lines',
+        stackgroup='one'
+    )
+    trace4 = go.Scatter(
+        name = 'Treatment Dose',
+        xaxis='x1', yaxis='y1',
+        # line = {'color':'rgb(.9,.5,.1)','width':2.5},
+        line = {'color':'rgb(255,50,25)','width':2},
+        y=np.linspace(0,max_y,50),
+        x=np.full((50),selected_dose)
+    )
+    traces = [trace1,trace2,trace3,trace4]
+
+    layout=go.Layout(
+        xaxis=dict(
+            title= "Dose",
+            range=[0,100],
+            linecolor='rgb(.4,.4,.4)',
+            linewidth=1,
+            mirror=False
+            ),
+        yaxis=dict(
+            title="GARD",
+            range=[0,max_y],
+            linecolor='rgb(.4,.4,.4)',
+            linewidth=1,
+            mirror=False
+            ),
+        width=400,
+        height=300,
+        margin=go.layout.Margin(
+            l=50,
+            r=40,
+            b=50,
+            t=30,
+            pad=.1),
+        showlegend=False
+    )
+
+    return {
+        'data':traces,
+        'layout':layout
+    }
+
+"""----------------------------------------------------------------"""
+@app.callback(
+    Output('cdf-hist-plot','figure'),
+    [Input('rsi-slider','value'),
+    Input('dose-slider','value')]
+)
+
+def update_cdf_hist(selected_rsi,selected_dose):
+    rval = selected_rsi
+    alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
+    rxdose_val = 33/(alpha_val+beta*d)
+    dose_val = selected_dose
+    gard_val = dose_val*(alpha_val+beta*d)
+    G33 = True if (dose_val>=rxdose_val) else False
+
+    def construct_kde(array, bandwidth=None):
+        if bandwidth == None:
+            bw = 1.2*array.std()*np.power(array.size,-1/5)
+        else:
+            bw = bandwidth
+        kde = KernelDensity(kernel='gaussian', bandwidth=bw)
+        kde.fit(array.reshape(-1,1))
+        x = np.linspace(array.min(),array.max(),200)
+        log_dens=kde.score_samples(x.reshape(-1,1))
+        kdens=np.exp(log_dens)
+
+        total_dens=np.sum(kdens)
+        cdf_array=np.zeros(shape=len(x))
+        for i in range(len(x)):
+            cdf_array[i] = np.sum(kdens[:i])/total_dens
+        return x,kdens,cdf_array
+
+
+
+    rsi_kde = construct_kde(r)
+    dist_rsi = go.Scatter(x=rsi_kde[0],y=rsi_kde[1],
+                    xaxis='x2',yaxis='y2',
+                    line=dict(color='rgb(.1,.6,.3)'),
+                    showlegend=False)
+
+    cdf_rsi_trace = go.Scatter(x=rsi_kde[0],y=rsi_kde[2]*4.5,
+                    xaxis='x2',yaxis='y2',
+                    line=dict(color='rgb(.1,.6,.3)'),
+                    showlegend=False)
+
+    rsi_hist_obj = np.histogram(r,bins=list(np.arange(0.02,.82,.04)),density=True)
+    bar_rsi = go.Bar(x=rsi_hist_obj[1][:-2],y=rsi_hist_obj[0],
+                 width=.02,
+                 marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
+                 xaxis='x2',yaxis='y2')
+    rsi_cdf_hist = cumulative_hist(rsi_hist_obj)
+    cdf_bar_rsi = go.Bar(x=rsi_cdf_hist[1][:-2],y=rsi_cdf_hist[0]*4.2,
+                        width = .02,
+                        marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
+                        name='rsi',
+                        xaxis='x2',yaxis='y2')
+    #####
+    rxdose_kde=construct_kde(rxdose_tcc)
+    dist_rxdose = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[1],
+                    xaxis='x1',yaxis='y1',
+                    line=dict(color='rgb(.1,.6,.85)'),
+                    showlegend=False)
+    cdf_rxdose_trace = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[2]*.027,
+                    xaxis='x1',yaxis='y1',
+                    line=dict(color='rgb(.1,.6,.85)'),
+                    showlegend=False)
+
+    rxdose_bins = list(np.arange(21,131,5))+[240]
+    rxdose_hist = np.histogram(rxdose_tcc,bins=rxdose_bins,density=True)
+    bar_rxdose = go.Bar(x=rxdose_hist[1][:-2],y=rxdose_hist[0],
+                        width = 4,
+                        marker = {'color':'rgb(.1,.6,.85)'},
+                        opacity=.4,name='rxrsi')
+    rxdose_cdf_hist = cumulative_hist(rxdose_hist)
+    cdf_bar_rxdose = go.Bar(x=rxdose_cdf_hist[1][1:],y=rxdose_cdf_hist[0]*.027,
+                        width = 4,
+                        marker = {'color':'rgb(.1,.6,.85)'},
+                        opacity=.4,name='rxrsi')
+
+    traces = [cdf_rxdose_trace,cdf_bar_rxdose,cdf_rsi_trace,cdf_bar_rsi]
+
+    # traces = [bar_rsi, dist_rsi, bar_rxdose, dist_rxdose]
+
+    rsi_range_x = [0, .8]
+    rsi_range_y = [0,5.5]
+    gard_range_x=[0,130]
+    gard_range_y=[0,0.038]
+
+    ticker_color = 'rgb(.95,.6,.2)'
+    traces.append(go.Scatter(
+        name='Selected RSI',
+        xaxis='x2',yaxis='y2',
+        line = {'color':ticker_color,'width':1,'dash':'dash'},
+        y=np.linspace(0,6,50),
+        x=np.full((50),rval))
+    )
+    traces.append(go.Scatter(
+        name = 'RxRSI',
+        xaxis='x1', yaxis='y1',
+        line = {'color':ticker_color,'width':2.75},
+        y=np.linspace(0,gard_range_y[1],50),
+        x=np.full((50),rxdose_val))
+    )
+    traces.append(go.Scatter(
+        name = 'Treatment Dose',
+        xaxis='x1', yaxis='y1',
+        line = {'color':'rgb(.95,.2,.1)','width':2.75},
+        y=np.linspace(0,gard_range_y[1],50),
+        x=np.full((50),dose_val))
+    )
+    frame = False
+    axes_color = 'rgb(.5,.5,.5)'
+
+    layout = go.Layout(
+        xaxis1=dict(
+            title= "Dose (Gy)",
+            domain=[0,1],
+            range=gard_range_x,
+            anchor='y1',
+            showgrid=False,
+            linecolor=axes_color,
+            linewidth=1.4,
+            mirror=frame,
+            tickmode='array',
+            tickvals = list(range(0,160,10)),
+            ticktext= [0,'',20,'',40,'',60,'',80,'',100,'',120,'','',''],
+            ticklen=4),
+        yaxis1=dict(
+            domain=[0,1],
+            range=gard_range_y,
+            anchor='x1',
+            linecolor=axes_color,
+            linewidth=1.4,
+            mirror=frame,
+            showticklabels=False,
+            showgrid=False),
+        xaxis2=dict(
+            title='RSI',
+            titlefont={'size':12},
+            linecolor = axes_color,
+            linewidth=1.4,
+            showgrid=False,
+            domain=[0.05, .5],range=rsi_range_x,
+            anchor='y2',
+            tickmode='array',
+            tickvals = list(np.arange(0,.9,.1)),
+            ticktext= [0,'','.2','','.4','','.6','','.8'],
+            ticklen=3,
+            tickfont={'size':10}),
+        yaxis2=dict(
+            showticklabels=False,
+            linecolor= axes_color,
+            linewidth=1.4,
+            domain=[0.55, 1],range = rsi_range_y,
+            anchor='x2',
+            showgrid=False),
+
+        width=400,
+        height=400,
+        margin=go.layout.Margin(
+            l=40,
+            b=40,
+            t=20,
+            r=60,
+            pad=0.1
+        ),
+        # title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.91),
+        showlegend=False
+    )
+    return {
+        'data':traces,
+        'layout':layout
+    }
+
+"""----------------------------------------------------------------"""
 
 """ *************** add rsi, gard, dose to output table *************** """
 @app.callback([Output('rsi-output','children'),
@@ -772,14 +1063,14 @@ def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entr
     dose_val = selected_dose
     entry_methods = [h_entry_method,l_entry_method,e_entry_method]
     fx_total = [14,8.5,4]
-    manual_doses= [hdose, ldose, edose]
+    manual_percent= [hdose, ldose, edose]
     site_dose_outputs = []
 
     for i in range(len(entry_methods)):
         if (entry_methods[i]=='auto'):
             site_dose_outputs.append(np.round(selected_dose/fx_total[i],1))
         elif (entry_methods[i] == 'manual'):
-            site_dose_outputs.append(manual_doses[i])
+            site_dose_outputs.append(np.round(selected_dose*manual_percent[i]/100,1))
         else:
             site_dose_outputs.append('')
 
@@ -821,17 +1112,56 @@ def reset_dose_input(h_type,l_type,e_type,h_nblur,h_nsubmit,h_cur_val,l_nblur,l_
 
 @app.callback([Output('heart-dose-input','disabled'),
                Output('lung-dose-input','disabled'),
-               Output('esoph-dose-input','disabled')],
+               Output('esoph-dose-input','disabled'),
+
+               Output('heart_input-container','hidden'),
+               Output('lung_input-container','hidden'),
+               Output('esoph_input-container','hidden'),
+
+               Output('heart-default-percent','hidden'),
+               Output('lung-default-percent','hidden'),
+               Output('esoph-default-percent','hidden'),
+
+               Output('heart-default-percent','children'),
+               Output('lung-default-percent','children'),
+               Output('esoph-default-percent','children'),
+               ],
               [Input('entry-method-heart','value'),
                Input('entry-method-lung','value'),
                Input('entry-method-esoph','value')])
 
 def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
-    disable_h = True if h_entry_method == 'auto' else False
-    disable_l = True if l_entry_method == 'auto' else False
-    disable_e = True if e_entry_method == 'auto' else False
+    entry_methods = [h_entry_method,l_entry_method,e_entry_method]
+    inputs_disabled = []
+    inputs_hidden = []
+    auto_pp_hidden = []
+    auto_pp_value = []
+    defaults = ['7','12','25']
+    for i in range(len(entry_methods)):
+        if (entry_methods[i] == 'auto'):
+            inputs_disabled.append(True)
+            inputs_hidden.append(True)
+            auto_pp_hidden.append(False)
+            auto_pp_value.append('{}%'.format(defaults[i]))
+        elif entry_methods[i] == 'manual':
+            inputs_disabled.append(False)
+            inputs_hidden.append(False)
+            auto_pp_hidden.append(True)
+            auto_pp_value.append('')
+        elif entry_methods[i] == '':
+            inputs_disabled.append(True)
+            inputs_hidden.append(True)
+            auto_pp_hidden.append(True)
+            auto_pp_value.append('')
 
-    return [disable_h,disable_l,disable_e]
+    # disable_h = True if h_entry_method == 'auto' else False
+    # disable_l = True if l_entry_method == 'auto' else False
+    # disable_e = True if e_entry_method == 'auto' else False
+    #
+    # hidden_e = True if e_entry_method == 'auto' else False
+
+    # return [disable_h,disable_l,disable_e,hidden_e]
+    return inputs_disabled + inputs_hidden + auto_pp_hidden + auto_pp_value
 """----------------------------------------------------------------------"""
 
 
@@ -842,8 +1172,8 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
      Output('entry-method-lung','value'),
      Output('entry-method-esoph','value'),
      Output('heart_radio-table-cell','hidden'),
-     Output('lung_radio-table-cell','hidden'),
-     Output('esoph_radio-table-cell','hidden'),
+     Output('lung_radio-container','hidden'),
+     Output('esoph_radio-container','hidden'),
      Output('h-repl-radio','children'),Output('h-repl-radio','hidden'),
      Output('l-repl-radio','children'),Output('l-repl-radio','hidden'),
      Output('e-repl-radio','children'),Output('e-repl-radio','hidden')],
@@ -875,11 +1205,12 @@ def update_all_dose_radios(entry_method_all):
 """----------------------------------------------------------------------"""
 
 
+
 """----------------------- clear button ------------------------------"""
 @app.callback([Output('apply-all','value')],
               [Input('clear-button','n_clicks')])
 def  reset_radio_buttons(n_clicks):
-    return ['']
+    return ['cleared']
 """----------------------------------------------------------------------"""
 
 

@@ -8,6 +8,7 @@ import plotly.graph_objs as go
 import plotly.figure_factory as ff
 
 from scipy.special import erf
+from scipy import stats
 
 import pandas as pd
 # import palettable
@@ -46,7 +47,14 @@ def construct_kde(array, bandwidth=None):
     x = np.linspace(array.min(),array.max(),200)
     log_dens=kde.score_samples(x.reshape(-1,1))
     kdens=np.exp(log_dens)
-    return x,kdens
+
+    total_dens=np.sum(kdens)
+    cdf_array=np.zeros(shape=len(x))
+    delta=x[1]-x[0]
+    for i in range(len(x)):
+        cdf_array[i] = np.sum(kdens[:i])*delta
+
+    return x,kdens, cdf_array
 
 def cumulative_hist(hist_obj):
     counts = hist_obj[0]
@@ -55,6 +63,16 @@ def cumulative_hist(hist_obj):
     for i in range(len(counts)):
         cdf_hist_obj[i]  = np.sum(counts[:i])/total_sum
     return cdf_hist_obj,hist_obj[1]
+
+
+def calc_cdf(array,var,bandwidth=None):
+    if bandwidth == None:
+        bw = 1.2*array.std()*np.power(array.size,-1/5)
+    else:
+        bw = bandwidth
+    kde=stats.gaussian_kde(dataset=array,bw_method=bw)
+    return kde.integrate_box_1d(low=0,high=var)
+
 
 """ weibull fits: """
 
@@ -206,6 +224,7 @@ bar_rxdose = go.Bar(name  = 'Rx-RSI (Gy)',
                     # marker = {'color':'rgb(.4,.1,.5)'},
                     marker = {'color':'rgb(.1,.6,.85)'},
                     opacity=.4,
+                    hoverinfo='none',
                     xaxis='x1', yaxis='y1')
 
 hist_rsi = go.Histogram(name='RSI',
@@ -221,13 +240,14 @@ hist_rxdose = go.Histogram(x=rxdose_tcc,nbinsx=60,
                            # marker = {'color':'rgb(.1,.6,.3)'},
                            marker = {'color':'rgb(.1,.6,.85)'}, # lighter blue
                            xaxis='x1',yaxis='y1',
-                           name='Rx-RSI (Gy)')
+                           name='Rx-RSI (Gy)',
+                           hoverinfo='none')
 
 rxdose_kde = construct_kde(rxdose_tcc)
 dist_rxdose = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[1],
                 xaxis='x1',yaxis='y1',
-                hoverinfo='x',
                 line=dict(color='rgb(.1,.6,.85)',width=2.5),
+                hoverinfo='none',
                 showlegend=False)
 
 rsi_kde = construct_kde(r)
@@ -290,7 +310,7 @@ layout_hists = go.Layout(
     height=500,
     margin=go.layout.Margin(
         l=40,
-        b=60,
+        b=70,
         t=50,
         r=130,
         pad=0.1),
@@ -300,7 +320,7 @@ layout_hists = go.Layout(
         bordercolor=axes_color,
         borderwidth=1),
     paper_bgcolor='rgb(.97,.97,.97)',
-    title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.95)
+    # title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.95)
 )
 
 layout_outcome_curves = go.Layout(
@@ -331,15 +351,18 @@ layout_outcome_curves = go.Layout(
     margin=go.layout.Margin(
         l=70,
         r=40,
-        b=70,
-        t=60,
+        b=90,
+        t=70,
         pad=.1),
-    legend=dict(x=.1,y=.1),
+    legend=dict(x=.1,y=.1,
+                bgcolor= 'rgb(255,255,255)',
+                bordercolor=axes_color,
+                borderwidth=1),
     paper_bgcolor='rgb(.97,.97,.97)',
     # plot_bgcolor = 'rgb(250,250,250)',
     # paper_bgcolor='rgb(20,60,110)',
     # font=dict(color='rgb(230,230,230)'),
-    title=go.layout.Title(text='[Title Here...]',x=0.18,yref='container',y=.93)
+    # title=go.layout.Title(text='[Title Here...]',x=0.18,yref='container',y=.93)
 )
 
 #%%
@@ -363,6 +386,9 @@ server = app.server
 marks={.01:'0'}
 for k in rsi_interval[4::5]:
     marks[str(k)]=str(k)
+
+th_style={'font-size':12,'paddingLeft':10,'paddingTop':5,'paddingBottom':5,'backgroundColor':'rgb(245,245,245)'}
+td_style={'font-size':12,'textAlign':'center','padding':5}
 #%%
 app.layout = html.Div(
     [
@@ -385,32 +411,38 @@ app.layout = html.Div(
                     html.Table(
                         [
                             html.Thead([
-                                html.Tr(html.Th('Outcomes',colSpan=2,style={'background-color':'rgb(240,240,240)',
+                                html.Tr(html.Th('Results',colSpan=2,style={'font-size':13,
+                                                                           'background-color':'rgb(220,220,220)',
                                                                             'textAlign':'center',
                                                                             'padding':5}))
                             ], style={'height':'20px'}),
                             html.Colgroup([
-                                html.Col(style={'backgroundColor':'rgb(240,240,240)','width':120}),
-                                html.Col(style={'width':120})
+                                html.Col(style={'backgroundColor':'rgb(220,220,220)','width':100}),
+                                html.Col(style={'width':100})
                             ]),
                             html.Tbody([
-                                html.Tr([html.Th('RSI',style={'paddingLeft':10}), html.Td(id='rsi-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('Dose',style={'paddingLeft':10}), html.Td(id='dose-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('RxRSI',style={'paddingLeft':10}),html.Td(id='rxdose-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('GARD (Tx)',style={'paddingLeft':10}),html.Td(id='gard-output',style={'textAlign':'center'})]),
+                                html.Tr([html.Th('RSI',style=th_style), html.Td(id='rsi-output',style=td_style)]),
+                                html.Tr([html.Th('Dose',style=th_style), html.Td(id='dose-output',style=td_style)]),
+                                html.Tr([html.Th('RxRSI',style=th_style),html.Td(id='rxdose-output',style=td_style)]),
+                                html.Tr([html.Th('GARD (Tx)',style=th_style),html.Td(id='gard-output',style=td_style)]),
 
-                                html.Tr(html.Th('Normal Tissue Doses',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
-                                html.Tr([html.Th(['Heart'],style={'paddingLeft':10}), html.Td(id='heart-dose-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('Lung',style={'paddingLeft':10}), html.Td(id='lung-dose-output',style={'textAlign':'center'})]),
-                                html.Tr([html.Th('Esophagus',style={'paddingLeft':10}), html.Td(id='esoph-dose-output',style={'textAlign':'center'})]),
+                                html.Tr(html.Th('Normal Tissue Doses',style={'textAlign':'center','fontSize':13,'padding':5},colSpan=2)),
 
-                                html.Tr(html.Th('Outcomes',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
-                                html.Tr([html.Th('5-yr Predicted EFS',style={'padding':10}), html.Td(id='pefs-output',style={'textAlign':'center'})])
+                                html.Tr([html.Th('Heart',style=th_style), html.Td(id='heart-dose-output',style=td_style)]),
+                                html.Tr([html.Th('Lung',style=th_style), html.Td(id='lung-dose-output',style=td_style)]),
+                                html.Tr([html.Th('Esophagus',style=th_style), html.Td(id='esoph-dose-output',style=td_style)]),
 
-                            ],style={'fontSize':13})
+                                html.Tr(html.Th('Outcomes',style={'textAlign':'center','fontSize':13,'padding':5},colSpan=2)),
+
+                                html.Tr([html.Th('1-yr pLC',style=th_style), html.Td(id='pefs-output-1',style=td_style)]),
+                                html.Tr([html.Th('2-yr pLC',style=th_style), html.Td(id='pefs-output-2',style=td_style)]),
+                                html.Tr([html.Th('5-yr pLC',style=th_style), html.Td(id='pefs-output-5',style=td_style)])
+
+
+                            ])
                         ], style={'margin-top':10}
                     )
-                ], style={'float':'right','height':500,'margin-right':30,
+                ], style={'float':'right','height':500,'margin-right':50,
                           'border-style':'hidden',
                           'border-width':2,
                           'border-color':'rgb(120,120,120)'}
@@ -451,23 +483,6 @@ app.layout = html.Div(
                     )
                 ], style = {'fontSize':14}),
 
-                html.Div(
-                    dcc.Graph(id='gard-dose-plot'),
-                    style={'display':'inline-block',
-                           'border-style':'solid',
-                           'border-width':1,
-                           'border-color':'rgb(120,120,120)',
-                           'marginTop':50}
-                ),
-                html.Div(
-                    dcc.Graph(id='cdf-hist-plot'),
-                    style={'display':'inline-block',
-                           'border-style':'solid',
-                           'border-width':1,
-                           'border-color':'rgb(120,120,120)',
-                           'marginTop':20}
-                )
-
 
             ], style={'width':450,'display':'inline-block'}),
 
@@ -477,13 +492,22 @@ app.layout = html.Div(
 
                     html.Table([
                         html.Thead([
-                            html.Tr(children=[html.Th('Site',style={'paddingLeft':'10px','paddingBottom':'5px','paddingTop':'5px'}),
-                                              html.Th('Use Total Dose', style={'padding':'5px'}),
-                                              html.Th('Manually Enter',style={'padding':'5px'}),
-                                              html.Th('',style={'padding':'5px'})],
-                                    style={'fontSize':14,'height':40,
+                            html.Tr(children=[html.Th(children=['Site',html.Br(),'(mean dose)'],rowSpan=2,style={'paddingLeft':'10px','paddingBottom':'5px','paddingTop':'5px'}),
+                                              # html.Th('Use Defaults', style={'padding':'5px'}),
+                                              # html.Th('Manually Enter',style={'padding':'5px'}),
+                                              html.Th('Calculation Method:',colSpan=2,style={'padding':'5px'}),
+                                              html.Th(children=['Percent of',html.Br(),'Total Dose'],rowSpan=2,style={'padding':'5px'})],
+                                    style={'fontSize':13,'height':20,
+                                           'color':'rgb(245,245,245)','backgroundColor':'rgb(120,120,120)'}),
+
+                            html.Tr(children=[
+                                              html.Td('Use Defaults', style={'padding':'5px'}),
+                                              html.Td('Manually Enter',style={'padding':'5px'})
+                                              ],
+                                    style={'fontSize':12,'height':20,
                                            'color':'rgb(245,245,245)','backgroundColor':'rgb(120,120,120)'})
                         ]),
+
                         html.Colgroup([
                             html.Col(style={'width':80,'backgroundColor':'rgb(240,240,240)'}),
                             html.Col(style={'width':90}),
@@ -491,9 +515,13 @@ app.layout = html.Div(
                             html.Col(style={'width':115})
                         ]),
                         html.Tbody([
+
                             html.Tr([
-                                html.Th('All',
-                                        style={'paddingLeft':'10px','paddingTop':'3px','paddingBottom':'3px','backgroundColor':'#ffffff'}),
+                                html.Td('Apply to All',
+                                        style={'font-size':11,'font-weight':'bold',
+                                               'paddingLeft':'10px','paddingTop':'3px','paddingBottom':'3px',
+                                               'color':'rgb(40,40,40)',
+                                               'backgroundColor':'#ffffff'}),
                                 html.Td([
                                     dcc.RadioItems(id = 'apply-all',
                                                   options=[{'label': '', 'value': 'auto'},
@@ -516,13 +544,17 @@ app.layout = html.Div(
                                                'vertical-align':'text-bottom',
                                                'z-index':1
                                                }
+                                    ),
+                                    html.Div(
+                                        children=['Clear'],
+                                        style={'font-weight':'bold','font-size':12,'display':'inline-block','marginLeft':5}
                                     )
                                 ], style={'paddingBottom':5,'paddingTop':5})
                             ], style={'height':'30px'}
                             ),
 
                             html.Tr([
-                                html.Th(['Heart',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
+                                html.Th(['Heart'],style={'paddingLeft':'10px'}),
 
                                 html.Td([
                                     html.Div(id='heart_radio-table-cell',children=[
@@ -540,19 +572,26 @@ app.layout = html.Div(
                                 html.Td([
                                     html.Div(id='heart_input-container',children=[
                                         dcc.Input(id = 'heart-dose-input',
-                                                  placeholder='% Total Dose',
+                                                  placeholder='0.0',
                                                   type='number',value='',
                                                   n_blur=0, n_submit=0,
                                                   debounce=True,
                                                   min=0.0, max=100.0, step=1,
-                                                  style={'width':'100px','display':'inline-block'})
-                                    ], hidden=True),
+                                                  style={'width':'60px','height':'30px','display':'inline-block',
+                                                         'paddingRight':5,
+                                                         'paddingLeft':8,
+                                                         'marginTop':1,
+                                                         'marginBottom':1
+                                                         }),
+                                        # '%'
+                                        html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
+                                    ],hidden=True),
                                     html.Div(id='heart-default-percent',hidden=True)
-                                ], style={'paddingRight':15})
+                                ], style={'paddingRight':15,'paddingTop':1,'paddingBottom':1})
                             ]),
 
                             html.Tr([
-                                html.Th(['Lung',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
+                                html.Th(['Lung'],style={'paddingLeft':'10px'}),
                                 html.Td([
                                     html.Div(id='lung_radio-container',children=[
                                         dcc.RadioItems(id = 'entry-method-lung',
@@ -568,19 +607,26 @@ app.layout = html.Div(
                                 html.Td([
                                     html.Div(id='lung_input-container',children=[
                                         dcc.Input(id = 'lung-dose-input',
-                                                  placeholder='% Total Dose',
+                                                  placeholder='0.0',
                                                   type='number',value='',
                                                   debounce=True,
                                                   min=0.0, max=100.0, step=1,
                                                   n_blur=0, n_submit=0,
-                                                  style={'width':'100px','display':'inline-block'})
-                                    ], hidden=True),
+                                                  style={'width':'60px','height':'30px','display':'inline-block',
+                                                         'paddingRight':5,
+                                                         'paddingLeft':8,
+                                                         'marginTop':1,
+                                                         'marginBottom':1
+                                                         }),
+                                        # '%'
+                                        html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
+                                    ],hidden=True),
                                     html.Div(id='lung-default-percent',hidden=True)
-                                ])
-
+                                ], style={'paddingRight':15,'paddingTop':1,'paddingBottom':1})
                             ]),
+
                             html.Tr([
-                                html.Th(['Esophagus',html.Br(),'mean dose'],style={'paddingLeft':'10px'}),
+                                html.Th(['Esophagus'],style={'paddingLeft':'10px'}),
                                 html.Td([
                                     html.Div(id='esoph_radio-container',children=[
                                         dcc.RadioItems(id = 'entry-method-esoph',
@@ -595,20 +641,27 @@ app.layout = html.Div(
                                 html.Td([
                                     html.Div(id='esoph_input-container',children=[
                                         dcc.Input(id = 'esoph-dose-input',
-                                                  placeholder='% Total Dose',
+                                                  placeholder='0.0',
                                                   type='number', value='',
                                                   debounce=True,
                                                   min=0.0, max=100.0, step=1,
                                                   n_blur=0, n_submit=0,
-                                                  style={'width':'100px','display':'inline-block'})
-                                    ], hidden=True),
+                                                  style={'width':'60px','height':'30px','display':'inline-block',
+                                                         'paddingRight':5,
+                                                         'paddingLeft':8,
+                                                         'marginTop':1,
+                                                         'marginBottom':1
+                                                         }),
+                                        # '%'
+                                        html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
+                                    ],hidden=True),
                                     html.Div(id='esoph-default-percent',hidden=True)
-                                ])
+                                ], style={'paddingRight':15,'paddingTop':1,'paddingBottom':1})
                             ])
                         ], style={'fontSize':13})
                     ]),
 
-            ], style={'width':500,'margin-left':10,'margin-right':40,'float':'right'}
+            ], style={'width':500,'margin-left':10,'margin-right':50,'float':'right'}
              ),
              # draft of alternate output table #
             # html.Div([
@@ -657,7 +710,8 @@ app.layout = html.Div(
     Input('dose-slider','value')])
 
 def update_slider_text(selected_rsi,selected_dose):
-    return 'RSI: {}'.format(np.round(selected_rsi,2)), 'Treatment Dose: {} (Gy)'.format(selected_dose)
+    # return 'RSI: {selected_rsi.2f}'.format(np.round(selected_rsi,2)), 'Treatment Dose: {} (Gy)'.format(selected_dose)
+    return 'RSI: %.2f' %selected_rsi, 'Treatment Dose: {} (Gy)'.format(selected_dose)
 
 
 """ ********************* update hist plots ********************* """
@@ -693,275 +747,72 @@ def update_hist_figures(selected_rsi,selected_dose):
         xaxis='x1', yaxis='y1',
         line = {'color':ticker_color,'width':2.75},
         y=np.linspace(0,gard_range_y[1],50),
-        x=np.full((50),rxdose_val))
+        x=np.full((50),rxdose_val),
+        hoverinfo='none'
+        )
     )
     traces.append(go.Scatter(
         name = 'Treatment Dose',
         xaxis='x1', yaxis='y1',
         line = {'color':'rgb(.95,.2,.1)','width':2.75},
         y=np.linspace(0,gard_range_y[1],50),
-        x=np.full((50),dose_val))
+        x=np.full((50),dose_val),
+        hoverinfo='none')
     )
+
+    # rxrsi hoverlabel and kde shading #
+    idx = np.argwhere(rxdose_kde[0]>=rxdose_val)[0][0]
+    kde_yval=rxdose_kde[1][idx]
+    percentile = np.round(calc_cdf(rxdose_tcc,rxdose_val,bandwidth=.1)*100,1)
+    display_rxrsi=np.int(np.round(rxdose_val,0))
+    traces.append(go.Scatter(
+        name='RxRSI',
+        x=[rxdose_val],
+        y=[kde_yval],
+        mode='markers',
+        marker=dict(color=ticker_color,size=8),
+        text='<b>{} Gy</b><br>{}%'.format(display_rxrsi,percentile),
+        hoverinfo='text+name',
+        # hoverlabel=dict(bgcolor= , bordercolor= , font={'size':,'color': }),
+        hoverlabel=dict(font={'size':12,'color':'white'}),
+        showlegend=False
+    ))
+    traces.append(go.Scatter(
+        x=rxdose_kde[0][:idx],
+        y=rxdose_kde[1][:idx],
+        xaxis='x1',yaxis='y1',
+        line=dict(color='rgb(250,250,250)',width=0),
+        fill='tozeroy',
+        fillcolor='rgba(245,245,245,.5)',
+        mode='lines',
+        hoverinfo='none',
+        showlegend=False
+        )
+    )
+
+    # dose hoverlabel stuff #
+    j = np.argwhere(rxdose_kde[0]>=dose_val)[0][0]
+    kde_yval_dose=rxdose_kde[1][j]
+    percentile_td = np.round(calc_cdf(rxdose_tcc,dose_val,bandwidth=.1)*100,1)
+    traces.append(go.Scatter(
+        name='Dose',
+        x=[dose_val],
+        y=[kde_yval_dose],            #[rxdose_kde[1].max()/3],
+        xaxis='x1', yaxis='y1',
+        mode='markers',
+        marker=dict(color='rgb(.95,.2,.1)',size=8),
+        text='<b>{} Gy</b><br>{}%'.format(dose_val,percentile_td),
+        hoverinfo='text+name',
+        hoverlabel=dict(font={'size':12}),
+        showlegend=False
+        )
+    )
+
     return {
         'data':traces,
         'layout':layout_hists
     }
 """----------------------------------------------------------------"""
-
-
-""" ********************* update gard-dose plot ********************* """
-@app.callback(
-    Output('gard-dose-plot','figure'),
-    [Input('rsi-slider','value'),
-    Input('dose-slider','value')]
-)
-def update_gard_dose_figure(selected_rsi,selected_dose):
-    rsi_i = selected_rsi
-    d = 2
-    beta = 0.05
-    n = 1
-    alpha_i = (np.log(rsi_i)+beta*n*(d**2))/(-n*d)
-    gard_nd_i = alpha_i+beta*d
-
-    dose = np.arange(0,102,2)
-    gard_i=gard_nd_i*dose
-
-    max_y = 80
-
-    trace3=go.Scatter(
-        x=dose,
-        y=gard_i,
-        line={'color':'rgb(20,20,20)'}
-    )
-    trace1 = go.Scatter(
-        x=dose,
-        y=np.full(shape=len(dose),fill_value=33),
-        # line=dict(color='rgb(220,60,60)'),
-        line=dict(color='rgb(250,160,140)'),
-        mode= 'lines',
-        stackgroup='one'
-    )
-    trace2 = go.Scatter(
-        x=dose,
-        y=np.full(shape=len(dose),fill_value=max_y-33),
-        line=dict(color='rgb(120,190,250)'),
-        mode= 'lines',
-        stackgroup='one'
-    )
-    trace4 = go.Scatter(
-        name = 'Treatment Dose',
-        xaxis='x1', yaxis='y1',
-        # line = {'color':'rgb(.9,.5,.1)','width':2.5},
-        line = {'color':'rgb(255,50,25)','width':2},
-        y=np.linspace(0,max_y,50),
-        x=np.full((50),selected_dose)
-    )
-    traces = [trace1,trace2,trace3,trace4]
-
-    layout=go.Layout(
-        xaxis=dict(
-            title= "Dose",
-            range=[0,100],
-            linecolor='rgb(.4,.4,.4)',
-            linewidth=1,
-            mirror=False
-            ),
-        yaxis=dict(
-            title="GARD",
-            range=[0,max_y],
-            linecolor='rgb(.4,.4,.4)',
-            linewidth=1,
-            mirror=False
-            ),
-        width=400,
-        height=300,
-        margin=go.layout.Margin(
-            l=50,
-            r=40,
-            b=50,
-            t=30,
-            pad=.1),
-        showlegend=False
-    )
-
-    return {
-        'data':traces,
-        'layout':layout
-    }
-
-"""----------------------------------------------------------------"""
-@app.callback(
-    Output('cdf-hist-plot','figure'),
-    [Input('rsi-slider','value'),
-    Input('dose-slider','value')]
-)
-
-def update_cdf_hist(selected_rsi,selected_dose):
-    rval = selected_rsi
-    alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
-    rxdose_val = 33/(alpha_val+beta*d)
-    dose_val = selected_dose
-    gard_val = dose_val*(alpha_val+beta*d)
-    G33 = True if (dose_val>=rxdose_val) else False
-
-    def construct_kde(array, bandwidth=None):
-        if bandwidth == None:
-            bw = 1.2*array.std()*np.power(array.size,-1/5)
-        else:
-            bw = bandwidth
-        kde = KernelDensity(kernel='gaussian', bandwidth=bw)
-        kde.fit(array.reshape(-1,1))
-        x = np.linspace(array.min(),array.max(),200)
-        log_dens=kde.score_samples(x.reshape(-1,1))
-        kdens=np.exp(log_dens)
-
-        total_dens=np.sum(kdens)
-        cdf_array=np.zeros(shape=len(x))
-        for i in range(len(x)):
-            cdf_array[i] = np.sum(kdens[:i])/total_dens
-        return x,kdens,cdf_array
-
-
-
-    rsi_kde = construct_kde(r)
-    dist_rsi = go.Scatter(x=rsi_kde[0],y=rsi_kde[1],
-                    xaxis='x2',yaxis='y2',
-                    line=dict(color='rgb(.1,.6,.3)'),
-                    showlegend=False)
-
-    cdf_rsi_trace = go.Scatter(x=rsi_kde[0],y=rsi_kde[2]*4.5,
-                    xaxis='x2',yaxis='y2',
-                    line=dict(color='rgb(.1,.6,.3)'),
-                    showlegend=False)
-
-    rsi_hist_obj = np.histogram(r,bins=list(np.arange(0.02,.82,.04)),density=True)
-    bar_rsi = go.Bar(x=rsi_hist_obj[1][:-2],y=rsi_hist_obj[0],
-                 width=.02,
-                 marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
-                 xaxis='x2',yaxis='y2')
-    rsi_cdf_hist = cumulative_hist(rsi_hist_obj)
-    cdf_bar_rsi = go.Bar(x=rsi_cdf_hist[1][:-2],y=rsi_cdf_hist[0]*4.2,
-                        width = .02,
-                        marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
-                        name='rsi',
-                        xaxis='x2',yaxis='y2')
-    #####
-    rxdose_kde=construct_kde(rxdose_tcc)
-    dist_rxdose = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[1],
-                    xaxis='x1',yaxis='y1',
-                    line=dict(color='rgb(.1,.6,.85)'),
-                    showlegend=False)
-    cdf_rxdose_trace = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[2]*.027,
-                    xaxis='x1',yaxis='y1',
-                    line=dict(color='rgb(.1,.6,.85)'),
-                    showlegend=False)
-
-    rxdose_bins = list(np.arange(21,131,5))+[240]
-    rxdose_hist = np.histogram(rxdose_tcc,bins=rxdose_bins,density=True)
-    bar_rxdose = go.Bar(x=rxdose_hist[1][:-2],y=rxdose_hist[0],
-                        width = 4,
-                        marker = {'color':'rgb(.1,.6,.85)'},
-                        opacity=.4,name='rxrsi')
-    rxdose_cdf_hist = cumulative_hist(rxdose_hist)
-    cdf_bar_rxdose = go.Bar(x=rxdose_cdf_hist[1][1:],y=rxdose_cdf_hist[0]*.027,
-                        width = 4,
-                        marker = {'color':'rgb(.1,.6,.85)'},
-                        opacity=.4,name='rxrsi')
-
-    traces = [cdf_rxdose_trace,cdf_bar_rxdose,cdf_rsi_trace,cdf_bar_rsi]
-
-    # traces = [bar_rsi, dist_rsi, bar_rxdose, dist_rxdose]
-
-    rsi_range_x = [0, .8]
-    rsi_range_y = [0,5.5]
-    gard_range_x=[0,130]
-    gard_range_y=[0,0.038]
-
-    ticker_color = 'rgb(.95,.6,.2)'
-    traces.append(go.Scatter(
-        name='Selected RSI',
-        xaxis='x2',yaxis='y2',
-        line = {'color':ticker_color,'width':1,'dash':'dash'},
-        y=np.linspace(0,6,50),
-        x=np.full((50),rval))
-    )
-    traces.append(go.Scatter(
-        name = 'RxRSI',
-        xaxis='x1', yaxis='y1',
-        line = {'color':ticker_color,'width':2.75},
-        y=np.linspace(0,gard_range_y[1],50),
-        x=np.full((50),rxdose_val))
-    )
-    traces.append(go.Scatter(
-        name = 'Treatment Dose',
-        xaxis='x1', yaxis='y1',
-        line = {'color':'rgb(.95,.2,.1)','width':2.75},
-        y=np.linspace(0,gard_range_y[1],50),
-        x=np.full((50),dose_val))
-    )
-    frame = False
-    axes_color = 'rgb(.5,.5,.5)'
-
-    layout = go.Layout(
-        xaxis1=dict(
-            title= "Dose (Gy)",
-            domain=[0,1],
-            range=gard_range_x,
-            anchor='y1',
-            showgrid=False,
-            linecolor=axes_color,
-            linewidth=1.4,
-            mirror=frame,
-            tickmode='array',
-            tickvals = list(range(0,160,10)),
-            ticktext= [0,'',20,'',40,'',60,'',80,'',100,'',120,'','',''],
-            ticklen=4),
-        yaxis1=dict(
-            domain=[0,1],
-            range=gard_range_y,
-            anchor='x1',
-            linecolor=axes_color,
-            linewidth=1.4,
-            mirror=frame,
-            showticklabels=False,
-            showgrid=False),
-        xaxis2=dict(
-            title='RSI',
-            titlefont={'size':12},
-            linecolor = axes_color,
-            linewidth=1.4,
-            showgrid=False,
-            domain=[0.05, .5],range=rsi_range_x,
-            anchor='y2',
-            tickmode='array',
-            tickvals = list(np.arange(0,.9,.1)),
-            ticktext= [0,'','.2','','.4','','.6','','.8'],
-            ticklen=3,
-            tickfont={'size':10}),
-        yaxis2=dict(
-            showticklabels=False,
-            linecolor= axes_color,
-            linewidth=1.4,
-            domain=[0.55, 1],range = rsi_range_y,
-            anchor='x2',
-            showgrid=False),
-
-        width=400,
-        height=400,
-        margin=go.layout.Margin(
-            l=40,
-            b=40,
-            t=20,
-            r=60,
-            pad=0.1
-        ),
-        # title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.91),
-        showlegend=False
-    )
-    return {
-        'data':traces,
-        'layout':layout
-    }
 
 """----------------------------------------------------------------"""
 
@@ -981,14 +832,16 @@ def update_output_table_rsi_gard(selected_rsi,selected_dose):
     gard_val = np.round(dose_val*(alpha_val+beta*d),0)
     G33 = True if (dose_val>=rxdose_val) else False
 
-    return rval, dose_val, rxdose_val, gard_val
+    return '%.2f' %rval, dose_val, rxdose_val, gard_val
 """------------------------------------------------------------------"""
 
 
 """ ********************* plot outcome curve *********************
 ------------------------------------------------------------------"""
 @app.callback([Output('outcome-curves','figure'),
-              Output('pefs-output','children')],
+               Output('pefs-output-1','children'),
+               Output('pefs-output-2','children'),
+              Output('pefs-output-5','children')],
               [Input('rsi-slider','value'),
                Input('dose-slider','value'),
                Input('heart-dose-output','children'),
@@ -1021,28 +874,45 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
     if all_doses_entered:
         pfs_array = pfs_gard33_man(t,G33,hdose,ldose,edose)
         traces.append(go.Scatter(
-            name='Predicted-EFS',
+            name='Penalized-LC',
             # line = {'color':'rgb(.4,.1,.5)'},
             line = {'color':'rgb(.8,.2,.1)'},
             x=t,
             y=pfs_array,
             visible=True,
             showlegend=True))
+        tb_output.append(np.round(pfs_array[9],2))
+        tb_output.append(np.round(pfs_array[19],2))
         tb_output.append(np.round(pfs_array[49],2))
         vis=True
     else:
-        tb_output.append('')
+        tb_output=['']*3
         vis=False
 
     traces.append(go.Scatter(
-        name='Predicted-LC',
+        name='Local Control',
         line = dict(color='rgb(.4,.1,.5)'),
         x=t,
         y=plc_gard33(t,G33),
-        visible=vis,
+        visible=False,
         showlegend=True))
 
-    return [{'data':traces,'layout':layout_outcome_curves}] + tb_output
+    layout = layout_outcome_curves
+    if all_doses_entered:
+        layout['annotations']=None
+    else:
+        layout['annotations']=[dict(
+            x=2.4,
+            y=.6,
+            xref='x',
+            yref='y',
+            text='Enter Normal<br>  Tissue Doses',
+            showarrow=False,
+            font = {'size':24,'color':'rgb(190,190,190)'},
+            align='left'
+        )]
+
+    return [{'data':traces,'layout':layout}] + tb_output
 """------------------------------------------------------------------"""
 
 
@@ -1062,14 +932,16 @@ def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entr
 
     dose_val = selected_dose
     entry_methods = [h_entry_method,l_entry_method,e_entry_method]
-    fx_total = [14,8.5,4]
+    percent_total = [7.0,11.8,25.2]
     manual_percent= [hdose, ldose, edose]
+
+
     site_dose_outputs = []
 
     for i in range(len(entry_methods)):
         if (entry_methods[i]=='auto'):
-            site_dose_outputs.append(np.round(selected_dose/fx_total[i],1))
-        elif (entry_methods[i] == 'manual'):
+            site_dose_outputs.append(np.round(selected_dose*percent_total[i]/100,1))
+        elif (entry_methods[i] == 'manual') and (manual_percent[i]!=''):
             site_dose_outputs.append(np.round(selected_dose*manual_percent[i]/100,1))
         else:
             site_dose_outputs.append('')
@@ -1136,7 +1008,7 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
     inputs_hidden = []
     auto_pp_hidden = []
     auto_pp_value = []
-    defaults = ['7','12','25']
+    defaults = ['7.0','11.8','25.2']
     for i in range(len(entry_methods)):
         if (entry_methods[i] == 'auto'):
             inputs_disabled.append(True)
@@ -1243,7 +1115,264 @@ def  reset_radio_buttons(n_clicks):
 
 
 
+""" ********************* update gard-dose plot ********************* """
+# @app.callback(
+#     Output('gard-dose-plot','figure'),
+#     [Input('rsi-slider','value'),
+#     Input('dose-slider','value')]
+# )
+# def update_gard_dose_figure(selected_rsi,selected_dose):
+#     rsi_i = selected_rsi
+#     d = 2
+#     beta = 0.05
+#     n = 1
+#     alpha_i = (np.log(rsi_i)+beta*n*(d**2))/(-n*d)
+#     gard_nd_i = alpha_i+beta*d
+#
+#     dose = np.arange(0,102,2)
+#     gard_i=gard_nd_i*dose
+#
+#     max_y = 80
+#
+#     trace3=go.Scatter(
+#         x=dose,
+#         y=gard_i,
+#         line={'color':'rgb(20,20,20)'}
+#     )
+#     trace1 = go.Scatter(
+#         x=dose,
+#         y=np.full(shape=len(dose),fill_value=33),
+#         # line=dict(color='rgb(220,60,60)'),
+#         line=dict(color='rgb(250,160,140)'),
+#         mode= 'lines',
+#         stackgroup='one'
+#     )
+#     trace2 = go.Scatter(
+#         x=dose,
+#         y=np.full(shape=len(dose),fill_value=max_y-33),
+#         line=dict(color='rgb(120,190,250)'),
+#         mode= 'lines',
+#         stackgroup='one'
+#     )
+#     trace4 = go.Scatter(
+#         name = 'Treatment Dose',
+#         xaxis='x1', yaxis='y1',
+#         # line = {'color':'rgb(.9,.5,.1)','width':2.5},
+#         line = {'color':'rgb(255,50,25)','width':2},
+#         y=np.linspace(0,max_y,50),
+#         x=np.full((50),selected_dose)
+#     )
+#     traces = [trace1,trace2,trace3,trace4]
+#
+#     layout=go.Layout(
+#         xaxis=dict(
+#             title= "Dose",
+#             range=[0,100],
+#             linecolor='rgb(.4,.4,.4)',
+#             linewidth=1,
+#             mirror=False
+#             ),
+#         yaxis=dict(
+#             title="GARD",
+#             range=[0,max_y],
+#             linecolor='rgb(.4,.4,.4)',
+#             linewidth=1,
+#             mirror=False
+#             ),
+#         width=400,
+#         height=300,
+#         margin=go.layout.Margin(
+#             l=50,
+#             r=40,
+#             b=50,
+#             t=30,
+#             pad=.1),
+#         showlegend=False
+#     )
+#
+#     return {
+#         'data':traces,
+#         'layout':layout
+#     }
 
+"""----------------------------------------------------------------"""
+
+""" ********************* update cdf hist ********************* """
+#
+# @app.callback(
+#     Output('cdf-hist-plot','figure'),
+#     [Input('rsi-slider','value'),
+#     Input('dose-slider','value')]
+# )
+#
+# def update_cdf_hist(selected_rsi,selected_dose):
+#     rval = selected_rsi
+#     alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
+#     rxdose_val = 33/(alpha_val+beta*d)
+#     dose_val = selected_dose
+#     gard_val = dose_val*(alpha_val+beta*d)
+#     G33 = True if (dose_val>=rxdose_val) else False
+#
+#     def construct_kde(array, bandwidth=None):
+#         if bandwidth == None:
+#             bw = 1.2*array.std()*np.power(array.size,-1/5)
+#         else:
+#             bw = bandwidth
+#         kde = KernelDensity(kernel='gaussian', bandwidth=bw)
+#         kde.fit(array.reshape(-1,1))
+#         x = np.linspace(array.min(),array.max(),200)
+#         log_dens=kde.score_samples(x.reshape(-1,1))
+#         kdens=np.exp(log_dens)
+#
+#         total_dens=np.sum(kdens)
+#         cdf_array=np.zeros(shape=len(x))
+#         for i in range(len(x)):
+#             cdf_array[i] = np.sum(kdens[:i])/total_dens
+#         return x,kdens,cdf_array
+#
+#
+#
+#     rsi_kde = construct_kde(r)
+#     dist_rsi = go.Scatter(x=rsi_kde[0],y=rsi_kde[1],
+#                     xaxis='x2',yaxis='y2',
+#                     line=dict(color='rgb(.1,.6,.3)'),
+#                     showlegend=False)
+#
+#     cdf_rsi_trace = go.Scatter(x=rsi_kde[0],y=rsi_kde[2]*4.5,
+#                     xaxis='x2',yaxis='y2',
+#                     line=dict(color='rgb(.1,.6,.3)'),
+#                     showlegend=False)
+#
+#     rsi_hist_obj = np.histogram(r,bins=list(np.arange(0.02,.82,.04)),density=True)
+#     bar_rsi = go.Bar(x=rsi_hist_obj[1][:-2],y=rsi_hist_obj[0],
+#                  width=.02,
+#                  marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
+#                  xaxis='x2',yaxis='y2')
+#     rsi_cdf_hist = cumulative_hist(rsi_hist_obj)
+#     cdf_bar_rsi = go.Bar(x=rsi_cdf_hist[1][:-2],y=rsi_cdf_hist[0]*4.2,
+#                         width = .02,
+#                         marker = {'color':'rgb(.1,.7,.35)'}, opacity=.6,
+#                         name='rsi',
+#                         xaxis='x2',yaxis='y2')
+#     #####
+#     rxdose_kde=construct_kde(rxdose_tcc)
+#     dist_rxdose = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[1],
+#                     xaxis='x1',yaxis='y1',
+#                     line=dict(color='rgb(.1,.6,.85)'),
+#                     showlegend=False)
+#     cdf_rxdose_trace = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[2]*.027,
+#                     xaxis='x1',yaxis='y1',
+#                     line=dict(color='rgb(.1,.6,.85)'),
+#                     showlegend=False)
+#
+#     rxdose_bins = list(np.arange(21,131,5))+[240]
+#     rxdose_hist = np.histogram(rxdose_tcc,bins=rxdose_bins,density=True)
+#     bar_rxdose = go.Bar(x=rxdose_hist[1][:-2],y=rxdose_hist[0],
+#                         width = 4,
+#                         marker = {'color':'rgb(.1,.6,.85)'},
+#                         opacity=.4,name='rxrsi')
+#     rxdose_cdf_hist = cumulative_hist(rxdose_hist)
+#     cdf_bar_rxdose = go.Bar(x=rxdose_cdf_hist[1][1:],y=rxdose_cdf_hist[0]*.027,
+#                         width = 4,
+#                         marker = {'color':'rgb(.1,.6,.85)'},
+#                         opacity=.4,name='rxrsi')
+#
+#     traces = [cdf_rxdose_trace,cdf_bar_rxdose,cdf_rsi_trace,cdf_bar_rsi]
+#
+#     # traces = [bar_rsi, dist_rsi, bar_rxdose, dist_rxdose]
+#
+#     rsi_range_x = [0, .8]
+#     rsi_range_y = [0,5.5]
+#     gard_range_x=[0,130]
+#     gard_range_y=[0,0.038]
+#
+#     ticker_color = 'rgb(.95,.6,.2)'
+#     traces.append(go.Scatter(
+#         name='Selected RSI',
+#         xaxis='x2',yaxis='y2',
+#         line = {'color':ticker_color,'width':1,'dash':'dash'},
+#         y=np.linspace(0,6,50),
+#         x=np.full((50),rval))
+#     )
+#     traces.append(go.Scatter(
+#         name = 'RxRSI',
+#         xaxis='x1', yaxis='y1',
+#         line = {'color':ticker_color,'width':2.75},
+#         y=np.linspace(0,gard_range_y[1],50),
+#         x=np.full((50),rxdose_val))
+#     )
+#     traces.append(go.Scatter(
+#         name = 'Treatment Dose',
+#         xaxis='x1', yaxis='y1',
+#         line = {'color':'rgb(.95,.2,.1)','width':2.75},
+#         y=np.linspace(0,gard_range_y[1],50),
+#         x=np.full((50),dose_val))
+#     )
+#     frame = False
+#     axes_color = 'rgb(.5,.5,.5)'
+#
+#     layout = go.Layout(
+#         xaxis1=dict(
+#             title= "Dose (Gy)",
+#             domain=[0,1],
+#             range=gard_range_x,
+#             anchor='y1',
+#             showgrid=False,
+#             linecolor=axes_color,
+#             linewidth=1.4,
+#             mirror=frame,
+#             tickmode='array',
+#             tickvals = list(range(0,160,10)),
+#             ticktext= [0,'',20,'',40,'',60,'',80,'',100,'',120,'','',''],
+#             ticklen=4),
+#         yaxis1=dict(
+#             domain=[0,1],
+#             range=gard_range_y,
+#             anchor='x1',
+#             linecolor=axes_color,
+#             linewidth=1.4,
+#             mirror=frame,
+#             showticklabels=False,
+#             showgrid=False),
+#         xaxis2=dict(
+#             title='RSI',
+#             titlefont={'size':12},
+#             linecolor = axes_color,
+#             linewidth=1.4,
+#             showgrid=False,
+#             domain=[0.05, .5],range=rsi_range_x,
+#             anchor='y2',
+#             tickmode='array',
+#             tickvals = list(np.arange(0,.9,.1)),
+#             ticktext= [0,'','.2','','.4','','.6','','.8'],
+#             ticklen=3,
+#             tickfont={'size':10}),
+#         yaxis2=dict(
+#             showticklabels=False,
+#             linecolor= axes_color,
+#             linewidth=1.4,
+#             domain=[0.55, 1],range = rsi_range_y,
+#             anchor='x2',
+#             showgrid=False),
+#
+#         width=400,
+#         height=400,
+#         margin=go.layout.Margin(
+#             l=40,
+#             b=40,
+#             t=20,
+#             r=60,
+#             pad=0.1
+#         ),
+#         # title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.91),
+#         showlegend=False
+#     )
+#     return {
+#         'data':traces,
+#         'layout':layout
+#     }
+
+"""----------------------------------------------------------------"""
 
 if __name__ == '__main__':
     app.run_server(debug=True)

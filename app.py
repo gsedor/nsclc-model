@@ -212,6 +212,7 @@ bar_rsi = go.Bar(name = 'RSI',
                 x=rsi_hist_obj[1][:-2], y=rsi_hist_obj[0],
                 width=.02,
                 marker = {'color':'rgb(.1,.7,.35)'},
+                # marker = {'color':'rgb(110,30,160)'},  # purple
                 opacity=.4,
                 xaxis='x2',yaxis='y2')
 
@@ -221,8 +222,8 @@ rxdose_hist_obj = np.histogram(rxdose_tcc,bins=bins_rxdose,density=True)
 bar_rxdose = go.Bar(name  = 'Rx-RSI (Gy)',
                     x=rxdose_hist_obj[1][:-2],y=rxdose_hist_obj[0],
                     width = 4,
-                    # marker = {'color':'rgb(.4,.1,.5)'},
-                    marker = {'color':'rgb(.1,.6,.85)'},
+                    marker = {'color':'rgb(140,140,140)'}, # gray
+                    # marker = {'color':'rgb(.1,.6,.85)'}, # blue
                     opacity=.4,
                     hoverinfo='none',
                     xaxis='x1', yaxis='y1')
@@ -246,7 +247,12 @@ hist_rxdose = go.Histogram(x=rxdose_tcc,nbinsx=60,
 rxdose_kde = construct_kde(rxdose_tcc)
 dist_rxdose = go.Scatter(x=rxdose_kde[0],y=rxdose_kde[1],
                 xaxis='x1',yaxis='y1',
-                line=dict(color='rgb(.1,.6,.85)',width=2.5),
+                line=dict(
+                    # color='rgb(.1,.6,.85)', # blue
+                    color='rgb(80,80,80)',
+                    width=2.5
+                ),
+
                 hoverinfo='none',
                 showlegend=False)
 
@@ -254,6 +260,7 @@ rsi_kde = construct_kde(r)
 dist_rsi = go.Scatter(x=rsi_kde[0],y=rsi_kde[1],
                 xaxis='x2',yaxis='y2',
                 line=dict(color='rgb(.1,.75,.3)'),
+                # line=dict(color='rgb(110,30,160)'), # purple
                 showlegend=False)
 
 """   plot layouts:   """
@@ -371,6 +378,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 
 
 #%%
@@ -389,6 +397,28 @@ for k in rsi_interval[4::5]:
 
 th_style={'font-size':12,'paddingLeft':10,'paddingTop':5,'paddingBottom':5,'backgroundColor':'rgb(245,245,245)'}
 td_style={'font-size':12,'textAlign':'center','padding':5}
+
+input_style={
+    'width':'60px','height':'30px','display':'inline-block',
+    'paddingRight':5,
+    'paddingLeft':8,
+    'marginTop':1,
+    'marginBottom':1
+}
+radio_args=dict(
+    options=[{'label': ' ', 'value': 'auto'},
+    {'label': ' ', 'value': 'manual'}],
+    labelStyle={'display': 'inline-block','paddingRight':'60px'},
+    value='')
+
+input_args=dict(
+    placeholder='0.0',
+    type='number', value='',
+    debounce=True,
+    min=0.0, max=100.0, step=1,
+    n_blur=0, n_submit=0)
+
+""" --------------- app layout --------------- """
 #%%
 app.layout = html.Div(
     [
@@ -437,7 +467,6 @@ app.layout = html.Div(
                                 html.Tr([html.Th('1-yr pLC',style=th_style), html.Td(id='pefs-output-1',style=td_style)]),
                                 html.Tr([html.Th('2-yr pLC',style=th_style), html.Td(id='pefs-output-2',style=td_style)]),
                                 html.Tr([html.Th('5-yr pLC',style=th_style), html.Td(id='pefs-output-5',style=td_style)])
-
 
                             ])
                         ], style={'margin-top':10}
@@ -493,8 +522,6 @@ app.layout = html.Div(
                     html.Table([
                         html.Thead([
                             html.Tr(children=[html.Th(children=['Site',html.Br(),'(mean dose)'],rowSpan=2,style={'paddingLeft':'10px','paddingBottom':'5px','paddingTop':'5px'}),
-                                              # html.Th('Use Defaults', style={'padding':'5px'}),
-                                              # html.Th('Manually Enter',style={'padding':'5px'}),
                                               html.Th('Calculation Method:',colSpan=2,style={'padding':'5px'}),
                                               html.Th(children=['Percent of',html.Br(),'Total Dose'],rowSpan=2,style={'padding':'5px'})],
                                     style={'fontSize':13,'height':20,
@@ -507,7 +534,6 @@ app.layout = html.Div(
                                     style={'fontSize':12,'height':20,
                                            'color':'rgb(245,245,245)','backgroundColor':'rgb(120,120,120)'})
                         ]),
-
                         html.Colgroup([
                             html.Col(style={'width':80,'backgroundColor':'rgb(240,240,240)'}),
                             html.Col(style={'width':90}),
@@ -527,7 +553,7 @@ app.layout = html.Div(
                                                   options=[{'label': '', 'value': 'auto'},
                                                   {'label': '', 'value': 'manual'}],
                                                   labelStyle={'display': 'inline-block','paddingRight':'60px'},
-                                                  value='',
+                                                  value='initial',
                                                   style={'display':'inline-block'})
                                     ], colSpan=2 , style={'paddingBottom':5,'paddingTop':5,'paddingLeft':'15px'}),
                                 html.Td([
@@ -559,31 +585,16 @@ app.layout = html.Div(
                                 html.Td([
                                     html.Div(id='heart_radio-table-cell',children=[
                                         dcc.RadioItems(id = 'entry-method-heart',
-                                                      options=[{'label': ' ', 'value': 'auto'},
-                                                      {'label': ' ', 'value': 'manual'}],
-                                                      labelStyle={'display': 'inline-block','paddingRight':'60px'},
-                                                      value='',
-                                                      style={'display':'inline-block'},
-                                                      ),
+                                                       **radio_args,
+                                                      style={'display':'inline-block'}),
                                     ]),
-                                    html.Div(id='h-repl-radio',hidden=True)
                                 ],colSpan=2),
 
                                 html.Td([
                                     html.Div(id='heart_input-container',children=[
                                         dcc.Input(id = 'heart-dose-input',
-                                                  placeholder='0.0',
-                                                  type='number',value='',
-                                                  n_blur=0, n_submit=0,
-                                                  debounce=True,
-                                                  min=0.0, max=100.0, step=1,
-                                                  style={'width':'60px','height':'30px','display':'inline-block',
-                                                         'paddingRight':5,
-                                                         'paddingLeft':8,
-                                                         'marginTop':1,
-                                                         'marginBottom':1
-                                                         }),
-                                        # '%'
+                                                  **input_args,
+                                                  style=input_style),
                                         html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
                                     ],hidden=True),
                                     html.Div(id='heart-default-percent',hidden=True)
@@ -595,30 +606,16 @@ app.layout = html.Div(
                                 html.Td([
                                     html.Div(id='lung_radio-container',children=[
                                         dcc.RadioItems(id = 'entry-method-lung',
-                                                      options=[{'label': '', 'value': 'auto'},
-                                                      {'label': '', 'value': 'manual'}],
-                                                      labelStyle={'display': 'inline-block','paddingRight':'60px'},
-                                                      value='',
+                                                       **radio_args,
                                                       style={'display':'inline-block'})
                                     ]),
-                                    html.Div(id='l-repl-radio', hidden=True)
                                 ], colSpan=2),
 
                                 html.Td([
                                     html.Div(id='lung_input-container',children=[
                                         dcc.Input(id = 'lung-dose-input',
-                                                  placeholder='0.0',
-                                                  type='number',value='',
-                                                  debounce=True,
-                                                  min=0.0, max=100.0, step=1,
-                                                  n_blur=0, n_submit=0,
-                                                  style={'width':'60px','height':'30px','display':'inline-block',
-                                                         'paddingRight':5,
-                                                         'paddingLeft':8,
-                                                         'marginTop':1,
-                                                         'marginBottom':1
-                                                         }),
-                                        # '%'
+                                                  **input_args,
+                                                  style=input_style),
                                         html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
                                     ],hidden=True),
                                     html.Div(id='lung-default-percent',hidden=True)
@@ -629,30 +626,12 @@ app.layout = html.Div(
                                 html.Th(['Esophagus'],style={'paddingLeft':'10px'}),
                                 html.Td([
                                     html.Div(id='esoph_radio-container',children=[
-                                        dcc.RadioItems(id = 'entry-method-esoph',
-                                                      options=[{'label': '', 'value': 'auto'},
-                                                      {'label': '', 'value': 'manual'}],
-                                                      labelStyle={'display': 'inline-block','paddingRight':'60px'},
-                                                      value='',
-                                                      style={'display':'inline-block'})
+                                        dcc.RadioItems(id = 'entry-method-esoph',**radio_args,style={'display':'inline-block'})
                                     ]),
-                                    html.Div(id='e-repl-radio',hidden=True)
                                 ], colSpan=2),
                                 html.Td([
                                     html.Div(id='esoph_input-container',children=[
-                                        dcc.Input(id = 'esoph-dose-input',
-                                                  placeholder='0.0',
-                                                  type='number', value='',
-                                                  debounce=True,
-                                                  min=0.0, max=100.0, step=1,
-                                                  n_blur=0, n_submit=0,
-                                                  style={'width':'60px','height':'30px','display':'inline-block',
-                                                         'paddingRight':5,
-                                                         'paddingLeft':8,
-                                                         'marginTop':1,
-                                                         'marginBottom':1
-                                                         }),
-                                        # '%'
+                                        dcc.Input(id = 'esoph-dose-input',**input_args,style=input_style),
                                         html.Div('%',style={'fontSize':13,'display':'inline','marginLeft':5})
                                     ],hidden=True),
                                     html.Div(id='esoph-default-percent',hidden=True)
@@ -660,41 +639,14 @@ app.layout = html.Div(
                             ])
                         ], style={'fontSize':13})
                     ]),
+                    # end table
+
+                    html.Div(id='display-store-data',style={'display':'inline-block'})
 
             ], style={'width':500,'margin-left':10,'margin-right':50,'float':'right'}
              ),
-             # draft of alternate output table #
-            # html.Div([
-            #     html.Table(
-            #         [
-            #             html.Thead([
-            #                 html.Tr(html.Th('Outcomes',colSpan=2,style={'background-color':'rgb(240,240,240)',
-            #                                                             'textAlign':'center',
-            #                                                             'padding':5}))
-            #             ], style={'height':'20px'}),
-            #             html.Colgroup([
-            #                 html.Col(style={'backgroundColor':'rgb(240,240,240)','width':120}),
-            #                 html.Col(style={'width':120})
-            #             ]),
-            #             html.Tbody([
-            #                 html.Tr([html.Th('RSI',style={'paddingLeft':10}), html.Td(id='____rsi-output',style={'textAlign':'center'})]),
-            #                 html.Tr([html.Th('Dose',style={'paddingLeft':10}), html.Td(id='_____dose-output',style={'textAlign':'center'})]),
-            #                 html.Tr([html.Th('RxDose',style={'paddingLeft':10}),html.Td(id='______rxdose-output',style={'textAlign':'center'})]),
-            #                 html.Tr([html.Th('GARD (Tx)',style={'paddingLeft':10}),html.Td(id='_____gard-output',style={'textAlign':'center'})]),
-            #
-            #                 html.Tr(html.Th('Normal Tissue Doses',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
-            #                 html.Tr([html.Th('Heart',style={'paddingLeft':10}), html.Td(id='_____heart-dose-output',style={'textAlign':'center'})]),
-            #                 html.Tr([html.Th('Lung',style={'paddingLeft':10}), html.Td(id='_____lung-dose-output',style={'textAlign':'center'})]),
-            #                 html.Tr([html.Th('Esophagus',style={'paddingLeft':10}), html.Td(id='_____esoph-dose-output',style={'textAlign':'center'})]),
-            #
-            #                 html.Tr(html.Th('Outcomes',style={'textAlign':'center','fontSize':15,'padding':5},colSpan=2)),
-            #                 html.Tr([html.Th('5-yr Predicted EFS',style={'padding':10}), html.Td(id='_____pefs-output',style={'textAlign':'center'})])
-            #
-            #             ],style={'fontSize':13})
-            #         ], style={'margin-top':10}
-            #     )
-            # ])
-            # end of draft of table  #
+            dcc.Store(id='dose-output-store'),
+            dcc.Store(id='memory-store'),
 
         ], style={'width':1050, 'margin-left':50,'margin-top':5, 'display':'block'})
 
@@ -738,7 +690,7 @@ def update_hist_figures(selected_rsi,selected_dose):
     traces.append(go.Scatter(
         name='Selected RSI',
         xaxis='x2',yaxis='y2',
-        line = {'color':ticker_color,'width':1,'dash':'dash'},
+        line = {'color':ticker_color,'width':1.5,'dash':'dash'},
         y=np.linspace(0,6,50),
         x=np.full((50),rval))
     )
@@ -762,13 +714,13 @@ def update_hist_figures(selected_rsi,selected_dose):
 
     # rxrsi hoverlabel and kde shading #
     idx = np.argwhere(rxdose_kde[0]>=rxdose_val)[0][0]
-    kde_yval=rxdose_kde[1][idx]
+    kde_yval_rxdose=rxdose_kde[1][idx]
     percentile = np.round(calc_cdf(rxdose_tcc,rxdose_val,bandwidth=.1)*100,1)
     display_rxrsi=np.int(np.round(rxdose_val,0))
     traces.append(go.Scatter(
         name='RxRSI',
         x=[rxdose_val],
-        y=[kde_yval],
+        y=[kde_yval_rxdose],
         mode='markers',
         marker=dict(color=ticker_color,size=8),
         text='<b>{} Gy</b><br>{}%'.format(display_rxrsi,percentile),
@@ -777,18 +729,19 @@ def update_hist_figures(selected_rsi,selected_dose):
         hoverlabel=dict(font={'size':12,'color':'white'}),
         showlegend=False
     ))
-    traces.append(go.Scatter(
-        x=rxdose_kde[0][:idx],
-        y=rxdose_kde[1][:idx],
-        xaxis='x1',yaxis='y1',
-        line=dict(color='rgb(250,250,250)',width=0),
-        fill='tozeroy',
-        fillcolor='rgba(245,245,245,.5)',
-        mode='lines',
-        hoverinfo='none',
-        showlegend=False
-        )
-    )
+    # fill of KDE up to RxRSI dose: ######
+    # traces.append(go.Scatter(
+    #     x=rxdose_kde[0][:idx],
+    #     y=rxdose_kde[1][:idx],
+    #     xaxis='x1',yaxis='y1',
+    #     line=dict(color='rgb(250,250,250)',width=0),
+    #     fill='tozeroy',
+    #     fillcolor='rgba(245,245,245,.5)',
+    #     mode='lines',
+    #     hoverinfo='none',
+    #     showlegend=False
+    #     )
+    # )
 
     # dose hoverlabel stuff #
     j = np.argwhere(rxdose_kde[0]>=dose_val)[0][0]
@@ -805,6 +758,27 @@ def update_hist_figures(selected_rsi,selected_dose):
         hoverinfo='text+name',
         hoverlabel=dict(font={'size':12}),
         showlegend=False
+        )
+    )
+
+    xmin=np.min([rxdose_val,dose_val])
+    xmax=np.max([rxdose_val,dose_val])
+    k = np.argwhere((rxdose_kde[0]>=xmin) & (rxdose_kde[0]<=xmax)).flatten()
+    xvals_fill = rxdose_kde[0][k]
+    # yvals_fill = rxdose_kde[1][k]
+    yvals_fill=np.full(shape=(len(k)),fill_value=gard_range_y[1])
+    fill_color = 'rgba(200,230,255,.2)' if rxdose_val<dose_val else 'rgba(255,180,180,.2)'
+    traces.append(
+        go.Scatter(
+            x=xvals_fill,
+            y=yvals_fill,
+            xaxis='x1', yaxis='y1',
+            line=dict(color='rgb(250,250,250)',width=0),
+            fill='tozeroy',
+            fillcolor=fill_color,
+            mode='lines',
+            hoverinfo='none',
+            showlegend=False
         )
     )
 
@@ -832,7 +806,7 @@ def update_output_table_rsi_gard(selected_rsi,selected_dose):
     gard_val = np.round(dose_val*(alpha_val+beta*d),0)
     G33 = True if (dose_val>=rxdose_val) else False
 
-    return '%.2f' %rval, dose_val, rxdose_val, gard_val
+    return '%.2f' %rval, '{} Gy'.format(dose_val), '%.0f Gy' % rxdose_val, gard_val
 """------------------------------------------------------------------"""
 
 
@@ -844,11 +818,13 @@ def update_output_table_rsi_gard(selected_rsi,selected_dose):
               Output('pefs-output-5','children')],
               [Input('rsi-slider','value'),
                Input('dose-slider','value'),
-               Input('heart-dose-output','children'),
-               Input('lung-dose-output','children'),
-               Input('esoph-dose-output','children')]
+               Input('dose-output-store','data'),
+               # Input('heart-dose-output','children'),
+               # Input('lung-dose-output','children'),
+               # Input('esoph-dose-output','children')
+               ]
 )
-def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
+def update_outcome_figure(selected_rsi,selected_dose,data):   #hdose,ldose,edose):
     rval = selected_rsi
     alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
     rxdose_val = 33/(alpha_val+beta*d)
@@ -858,18 +834,20 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
 
     traces = []
     tb_output = []
-    normal_tissue_doses = np.array([hdose,ldose,edose])
+    normal_tissue_doses = np.array(data)
 
     # if entry_method == 'auto':
     #     penalized_version = pfs_gard33(t,G33,dose_val)
     # elif (entry_method == 'manual'):
     #         penalized_version= pfs_gard33_man(t,G33,hdose,ldose,edose)
 
-    normal_tissue_doses = np.array([hdose,ldose,edose])
     if (np.any(normal_tissue_doses=='')) or (np.any(normal_tissue_doses==None)):
         all_doses_entered = False
     else:
         all_doses_entered = True
+        hdose=data[0]
+        ldose=data[1]
+        edose=data[2]
 
     if all_doses_entered:
         pfs_array = pfs_gard33_man(t,G33,hdose,ldose,edose)
@@ -906,7 +884,7 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
             y=.6,
             xref='x',
             yref='y',
-            text='Enter Normal<br>  Tissue Doses',
+            text='<i>Enter Normal<br>  Tissue Doses</i>',
             showarrow=False,
             font = {'size':24,'color':'rgb(190,190,190)'},
             align='left'
@@ -920,7 +898,8 @@ def update_outcome_figure(selected_rsi,selected_dose,hdose,ldose,edose):
 ----------------------------------------------------------------------"""
 @app.callback([Output('heart-dose-output','children'),
                Output('lung-dose-output','children'),
-               Output('esoph-dose-output','children')],
+               Output('esoph-dose-output','children'),
+               Output('dose-output-store','data')],
                 [Input('dose-slider','value'),
                  Input('entry-method-heart','value'),
                  Input('entry-method-lung','value'),
@@ -935,18 +914,25 @@ def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entr
     percent_total = [7.0,11.8,25.2]
     manual_percent= [hdose, ldose, edose]
 
-
-    site_dose_outputs = []
+    display_site_doses = []
+    store_site_doses = []
 
     for i in range(len(entry_methods)):
         if (entry_methods[i]=='auto'):
-            site_dose_outputs.append(np.round(selected_dose*percent_total[i]/100,1))
+            site_dose_i = selected_dose*percent_total[i]/100
+            store_site_doses.append(site_dose_i)
+            display_site_doses.append('%.1f Gy' % site_dose_i)
         elif (entry_methods[i] == 'manual') and (manual_percent[i]!=''):
-            site_dose_outputs.append(np.round(selected_dose*manual_percent[i]/100,1))
+            site_dose_i= selected_dose*manual_percent[i]/100
+            store_site_doses.append(site_dose_i)
+            display_site_doses.append('%.1f Gy' % site_dose_i)
         else:
-            site_dose_outputs.append('')
+            store_site_doses.append('')
+            display_site_doses.append('')
 
-    return site_dose_outputs
+    # store_site_doses=np.array(store_site_doses)
+
+    return display_site_doses + [store_site_doses]
 """--------------------------------------------------------"""
 
 """***************************** reset dose inputs ***************************
@@ -982,25 +968,20 @@ def reset_dose_input(h_type,l_type,e_type,h_nblur,h_nsubmit,h_cur_val,l_nblur,l_
 
 """ *************** update disable property of dose inputs ***************** """
 
-@app.callback([Output('heart-dose-input','disabled'),
-               Output('lung-dose-input','disabled'),
-               Output('esoph-dose-input','disabled'),
-
+@app.callback([
                Output('heart_input-container','hidden'),
                Output('lung_input-container','hidden'),
                Output('esoph_input-container','hidden'),
-
                Output('heart-default-percent','hidden'),
                Output('lung-default-percent','hidden'),
                Output('esoph-default-percent','hidden'),
-
                Output('heart-default-percent','children'),
                Output('lung-default-percent','children'),
-               Output('esoph-default-percent','children'),
-               ],
+               Output('esoph-default-percent','children')],
               [Input('entry-method-heart','value'),
                Input('entry-method-lung','value'),
-               Input('entry-method-esoph','value')])
+               Input('entry-method-esoph','value')]
+)
 
 def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
     entry_methods = [h_entry_method,l_entry_method,e_entry_method]
@@ -1011,29 +992,19 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
     defaults = ['7.0','11.8','25.2']
     for i in range(len(entry_methods)):
         if (entry_methods[i] == 'auto'):
-            inputs_disabled.append(True)
             inputs_hidden.append(True)
             auto_pp_hidden.append(False)
             auto_pp_value.append('{}%'.format(defaults[i]))
         elif entry_methods[i] == 'manual':
-            inputs_disabled.append(False)
             inputs_hidden.append(False)
             auto_pp_hidden.append(True)
             auto_pp_value.append('')
         elif entry_methods[i] == '':
-            inputs_disabled.append(True)
             inputs_hidden.append(True)
             auto_pp_hidden.append(True)
             auto_pp_value.append('')
 
-    # disable_h = True if h_entry_method == 'auto' else False
-    # disable_l = True if l_entry_method == 'auto' else False
-    # disable_e = True if e_entry_method == 'auto' else False
-    #
-    # hidden_e = True if e_entry_method == 'auto' else False
-
-    # return [disable_h,disable_l,disable_e,hidden_e]
-    return inputs_disabled + inputs_hidden + auto_pp_hidden + auto_pp_value
+    return  inputs_hidden + auto_pp_hidden + auto_pp_value
 """----------------------------------------------------------------------"""
 
 
@@ -1042,51 +1013,114 @@ def update_dose_input_editable(h_entry_method,l_entry_method,e_entry_method):
 @app.callback(
     [Output('entry-method-heart','value'),
      Output('entry-method-lung','value'),
-     Output('entry-method-esoph','value'),
-     Output('heart_radio-table-cell','hidden'),
-     Output('lung_radio-container','hidden'),
-     Output('esoph_radio-container','hidden'),
-     Output('h-repl-radio','children'),Output('h-repl-radio','hidden'),
-     Output('l-repl-radio','children'),Output('l-repl-radio','hidden'),
-     Output('e-repl-radio','children'),Output('e-repl-radio','hidden')],
-    [Input('apply-all','value')])
+     Output('entry-method-esoph','value')],
+    [Input('apply-all','value')],
+    [State('entry-method-heart','value'),
+     State('entry-method-lung','value'),
+     State('entry-method-esoph','value')]
+)
 
-def update_all_dose_radios(entry_method_all):
-    repl_radio_left= dcc.RadioItems(options=[{'label': '', 'value': 'a'}],
-                                        labelStyle={'display': 'inline-block','paddingRight':'60px'},
-                                        value='a', style={'display':'inline-block'})
-    repl_radio_right= dcc.RadioItems(options=[{'label': '', 'value': 'a'}],
-                                        labelStyle={'display': 'inline-block','paddingLeft':'78px'},
-                                        value='a', style={'display':'inline-block'})
+def update_all_dose_radios(entry_method_all,hval,lval,eval):
+
     if (entry_method_all == 'auto'):
         val = 'auto'
-        hidden=True
-        repl_radio = repl_radio_left
-        repl_hidden = False
     elif (entry_method_all == 'manual'):
         val = 'manual'
-        hidden=True
-        repl_radio = repl_radio_right
-        repl_hidden = False
-    else:
+    elif (entry_method_all=='cleared'):
         val = ''
-        hidden=False
-        repl_radio=''
-        repl_hidden=True
-    return [val]*3 + [hidden]*3 + [repl_radio, repl_hidden]*3
+    elif (entry_method_all=='initial'):
+        raise PreventUpdate
+
+    return [val]*3
 """----------------------------------------------------------------------"""
 
 
 
 """----------------------- clear button ------------------------------"""
-@app.callback([Output('apply-all','value')],
-              [Input('clear-button','n_clicks')])
-def  reset_radio_buttons(n_clicks):
-    return ['cleared']
+# @app.callback(Output('apply-all','value'),
+#               [Input('clear-button','n_clicks')])
+# def  reset_radio_buttons(nclicks):
+#
+#     return 'cleared'
 """----------------------------------------------------------------------"""
 
+@app.callback([Output('apply-all','value'),
+               Output('memory-store','data')],
+              [
+              Input('clear-button','n_clicks'),
+              Input('entry-method-heart','value'),
+              Input('entry-method-lung','value'),
+              Input('entry-method-esoph','value')
+              ],
+              [State('apply-all','value'),
+               State('memory-store','data')]
+)
+def  update_apply_all(nclicks,hval,lval,eval,all_val,data):
+
+    if data==None:
+        data={'clicks':0}
+    else:
+        data=data
+
+    button_trigger=False
+    if (nclicks!=None) and (data!=None):
+        if nclicks>data['clicks']:
+            button_trigger=True
+            data['clicks']=data['clicks']+1
+            new_all_val='cleared'
+
+            return new_all_val, data
+
+    all_on = True if ((all_val=='auto') or (all_val=='manual')) else False
+
+    current_vals=np.array([hval,lval,eval])
+    if (button_trigger==False) and (all_on==True):
+        if np.all(current_vals!='') and np.all(current_vals!=None):
+            if np.any(current_vals!=all_val):
+                new_all_val='initial'
+                return new_all_val, data
+
+    if button_trigger==False & all_on == False:
+        raise PreventUpdate
 
 
+#
+# @app.callback(Output('memory-store','data'),
+#               [
+#               Input('apply-all','value'),
+#               Input('clear-button','n_clicks')
+#               ],
+#               [State('memory-store','data')])
+# def update_store(val,nclicks, data):
+#
+#
+#     if (nclicks is None) & (val == 'initial'):
+#         raise PreventUpdate
+#
+#     if data==None:
+#         data={'clicks':0}  #,'all':'off'}
+#     else:
+#         data=data
+#
+#     if (val=='auto') or (val=='manual'):
+#         data['all']='on'
+#     else:
+#         data['all']='off'
+#
+#     if (nclicks != None):
+#         if (nclicks>data['clicks']):
+#             data['clicks']=data['clicks']+1
+#
+#     return data
+#
+
+# @app.callback(Output('display-store-data','children'),
+#               [Input('memory-store','data')]
+# )
+# def display_data(data):
+#     if data==None:
+#         raise PreventUpdate
+#     return 'No. of Clicks: %i' %data['clicks']
 
 ##################
 

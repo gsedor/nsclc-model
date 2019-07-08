@@ -441,7 +441,7 @@ app.layout = html.Div(
                     html.Table(
                         [
                             html.Thead([
-                                html.Tr(html.Th('Results',colSpan=2,style={'font-size':13,
+                                html.Tr(html.Th('Parameters',colSpan=2,style={'font-size':13,
                                                                            'background-color':'rgb(220,220,220)',
                                                                             'textAlign':'center',
                                                                             'padding':5}))

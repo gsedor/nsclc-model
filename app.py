@@ -732,7 +732,7 @@ def update_hist_figures(selected_rsi,selected_dose):
     #     )
     # )
 
-    # dose hoverlabel stuff #
+    # dose hoverlabel #
     j = np.argwhere(rxdose_kde[0]>=dose_val)[0][0]
     kde_yval_dose=rxdose_kde[1][j]
     percentile_td = np.round(calc_cdf(rxdose_tcc,dose_val,bandwidth=.1)*100,1)
@@ -1023,15 +1023,6 @@ def update_all_dose_radios(entry_method_all,hval,lval,eval):
     return [val]*3
 """----------------------------------------------------------------------"""
 
-
-
-"""----------------------- clear button ------------------------------"""
-# @app.callback(Output('apply-all','value'),
-#               [Input('clear-button','n_clicks')])
-# def  reset_radio_buttons(nclicks):
-#
-#     return 'cleared'
-"""----------------------------------------------------------------------"""
 
 @app.callback([Output('apply-all','value'),
                Output('memory-store','data')],

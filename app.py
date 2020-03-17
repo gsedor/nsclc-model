@@ -73,6 +73,7 @@ def calc_cdf(array,var,bandwidth=None):
     kde=stats.gaussian_kde(dataset=array,bw_method=bw)
     return kde.integrate_box_1d(low=0,high=var)
 
+#%%
 
 """ weibull fits: """
 
@@ -95,18 +96,6 @@ wb2 = dict(x=t,y=S2(t),xaxis='x2',yaxis='y2',
 
 
 """ exponential fits: """
-#
-# def exp_rsi(t,X):
-#     mu = 4.11
-#     gamma =  -6.55
-#     beta_0 = np.exp(-1*mu)
-#     return np.exp(-beta_0*t*np.exp(-gamma*X))
-#
-# def exp_gard(t,G):
-#     mu = 0.362
-#     gamma =  0.048
-#     beta_0 = np.exp(-1*mu)
-#     return np.exp(-beta_0*t*np.exp(-gamma*G))
 
 def plc_gard33(t,G33):
     """t = time in yrs, G33 = bool"""

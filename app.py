@@ -11,7 +11,6 @@ from scipy.special import erf
 from scipy import stats
 
 import pandas as pd
-# import palettable
 import seaborn as sns
 cp = sns.color_palette()
 
@@ -314,8 +313,7 @@ layout_hists = go.Layout(
         bgcolor= 'rgb(255,255,255)',
         bordercolor=axes_color,
         borderwidth=1),
-    paper_bgcolor='rgb(.97,.97,.97)',
-    # title=go.layout.Title(text='[Title Here]',x=0.1,yref='container',y=.95)
+    paper_bgcolor='rgb(.97,.97,.97)'
 )
 
 layout_outcome_curves = go.Layout(
@@ -353,11 +351,7 @@ layout_outcome_curves = go.Layout(
                 bgcolor= 'rgb(255,255,255)',
                 bordercolor=axes_color,
                 borderwidth=1),
-    paper_bgcolor='rgb(.97,.97,.97)',
-    # plot_bgcolor = 'rgb(250,250,250)',
-    # paper_bgcolor='rgb(20,60,110)',
-    # font=dict(color='rgb(230,230,230)'),
-    # title=go.layout.Title(text='[Title Here...]',x=0.18,yref='container',y=.93)
+    paper_bgcolor='rgb(.97,.97,.97)'
 )
 
 #%%
@@ -650,7 +644,6 @@ app.layout = html.Div(
     Input('dose-slider','value')])
 
 def update_slider_text(selected_rsi,selected_dose):
-    # return 'RSI: {selected_rsi.2f}'.format(np.round(selected_rsi,2)), 'Treatment Dose: {} (Gy)'.format(selected_dose)
     return 'RSI: %.2f' %selected_rsi, 'Treatment Dose: {} (Gy)'.format(selected_dose)
 
 
@@ -671,7 +664,6 @@ def update_hist_figures(selected_rsi,selected_dose):
 
     gard_tcc = gard_tcc_per_nd*dose_val
     hist_gard = go.Histogram(x=gard_tcc,nbinsx=60,histnorm='probability density',opacity=.6, marker = {'color':'rgb(.1,.6,.3)'},xaxis='x1',yaxis='y1')
-    # traces = [hist_rsi,hist_rxdose, dist_rxdose, dist_rsi]
     traces = [bar_rsi, dist_rsi, bar_rxdose, dist_rxdose]
 
     ticker_color = 'rgb(.95,.6,.2)'
@@ -713,23 +705,9 @@ def update_hist_figures(selected_rsi,selected_dose):
         marker=dict(color=ticker_color,size=8),
         text='<b>{} Gy</b><br>{}%'.format(display_rxrsi,percentile),
         hoverinfo='text+name',
-        # hoverlabel=dict(bgcolor= , bordercolor= , font={'size':,'color': }),
         hoverlabel=dict(font={'size':12,'color':'white'}),
         showlegend=False
     ))
-    # fill of KDE up to RxRSI dose: ######
-    # traces.append(go.Scatter(
-    #     x=rxdose_kde[0][:idx],
-    #     y=rxdose_kde[1][:idx],
-    #     xaxis='x1',yaxis='y1',
-    #     line=dict(color='rgb(250,250,250)',width=0),
-    #     fill='tozeroy',
-    #     fillcolor='rgba(245,245,245,.5)',
-    #     mode='lines',
-    #     hoverinfo='none',
-    #     showlegend=False
-    #     )
-    # )
 
     # dose hoverlabel #
     j = np.argwhere(rxdose_kde[0]>=dose_val)[0][0]
@@ -738,7 +716,7 @@ def update_hist_figures(selected_rsi,selected_dose):
     traces.append(go.Scatter(
         name='Dose',
         x=[dose_val],
-        y=[kde_yval_dose],            #[rxdose_kde[1].max()/3],
+        y=[kde_yval_dose],
         xaxis='x1', yaxis='y1',
         mode='markers',
         marker=dict(color='rgb(.95,.2,.1)',size=8),
@@ -773,11 +751,11 @@ def update_hist_figures(selected_rsi,selected_dose):
         'data':traces,
         'layout':layout_hists
     }
-"""----------------------------------------------------------------"""
+"""---------------------------------------------------------------------"""
 
-"""----------------------------------------------------------------"""
 
 """ *************** add rsi, gard, dose to output table *************** """
+"""---------------------------------------------------------------------"""
 @app.callback([Output('rsi-output','children'),
                Output('dose-output','children'),
                Output('rxdose-output','children'),
@@ -835,7 +813,6 @@ def update_outcome_figure(selected_rsi,selected_dose,data):   #hdose,ldose,edose
         pfs_array = pfs_gard33_man(t,G33,hdose,ldose,edose)
         traces.append(go.Scatter(
             name='Penalized-LC',
-            # line = {'color':'rgb(.4,.1,.5)'},
             line = {'color':'rgb(.8,.2,.1)'},
             x=t,
             y=pfs_array,
@@ -876,8 +853,7 @@ def update_outcome_figure(selected_rsi,selected_dose,data):   #hdose,ldose,edose
 """------------------------------------------------------------------"""
 
 
-""" ********************* add doses output table *********************
-----------------------------------------------------------------------"""
+""" ********************* add doses output table *********************"""
 @app.callback([Output('heart-dose-output','children'),
                Output('lung-dose-output','children'),
                Output('esoph-dose-output','children'),
@@ -912,13 +888,10 @@ def update_output_table_doses(selected_dose,h_entry_method,l_entry_method,e_entr
             store_site_doses.append('')
             display_site_doses.append('')
 
-    # store_site_doses=np.array(store_site_doses)
-
     return display_site_doses + [store_site_doses]
 """--------------------------------------------------------"""
 
-"""***************************** reset dose inputs ***************************
-------------------------------------------------------------------------------"""
+"""***************************** reset dose inputs ***************************"""
 @app.callback([Output('heart-dose-input','value'),
                Output('lung-dose-input','value'),
                Output('esoph-dose-input','value')],

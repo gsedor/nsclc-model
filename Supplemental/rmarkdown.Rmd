@@ -1,0 +1,431 @@
+---
+title: "RxRSI"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  rmdformats: html_clean
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(gridExtra)
+library(latex2exp)
+library(colorspace)
+library(tidyverse)
+library(readxl)
+library(survival)
+library(rms)
+library(knitr)
+library(rmdformats)
+library(xtable)
+options(xtable.floating = FALSE)
+options(xtable.timestamp = "")
+options(xtable.comment = FALSE,xtable.include.rownames=FALSE)
+
+options(max.print="75")
+opts_chunk$set(cache=TRUE, echo = TRUE, prompt=FALSE,
+               tidy=TRUE, comment=NA, message=FALSE, warning=FALSE)
+opts_knit$set(width=75)
+```
+
+```{r, include = FALSE}
+# q <- c("#2980b9","#10ac84","#8e44ad","#95a5a6","#34495e","#b71c1c","#fb8c00","#27ae60")
+q <- c("#2980b9","#10ac84","#8e44ad","#7f8c8d","#34495e","#b71c1c",rgb(.9,.55,.2),"#fb8c00","#27ae60")
+q <- c("#ff5252","#34ace0","#33d9b2","#706fd3","#ff793f","#aaa69d")
+swatchplot(q)
+
+```
+
+```{r, include = FALSE}
+# ---- summary of rms fit function ------ #
+summary.fit <- function(fit){
+  sum.tbl = tibble("coef"=0,"exp(coef)"=0,"se"=0,"z"=0,"chi-sq"=0,"p"=0)
+  sum.tbl
+  coef <- unname(fit$coefficients)
+  sum.tbl["coef"] <- coef
+  sum.tbl["exp(coef)"] <- exp(coef)
+  se <- unname(sqrt(fit$var))
+  sum.tbl["se"] <- se
+  zScore <- coef/se
+  sum.tbl["z"] <- zScore
+  sum.tbl["p"] <- (1-pnorm(abs(zScore),0,1))*2
+  sum.tbl["chi-sq"] <- anova(fit)[1,1]
+  sum.tbl <- round(sum.tbl,digits=3)
+  sum.tbl
+}
+
+
+```
+
+
+```{r, include=FALSE}
+
+# data<-read_excel('/Users/geoffreysedor/Documents/lungcohortdata.xlsx')
+# 
+# rsi <- data$SF2
+# nfx  <- data$nfx
+# fx <- data$fxsize
+# time <- (data$recurr_lasteval_date - data$SurgDate)/365
+# event <- data$LocalFailure
+# 
+# df <- tibble("RSI" = rsi, "n_c" = nfx,"d" = fx, "time" = time, "event" = event)
+# 
+# df<-df %>%
+#  rename("fxdose" = "d")
+# 
+# csv::as.csv(df,file='data.csv')
+```
+
+\section*{}
+First and foremost, we would like to thank reviewer \#1 for his/her careful assessment of our manuscript.
+There are a number of very legitimate concerns brough up, all of which, when addressed, will make the manuscript stronger.
+Upon first reading, we were most concerned by the issues raised surrounding the mathematical soundness.
+All other issues raised seemed addressable, and indeed would make the article stronger.
+No changes, however, would matter, in the mathematical analysis was indeed flawed -- so we first endeavoured to ascertain where either the error, or the misunderstanding, lay.
+
+Thankfully, the reviewer laid out his/her concerns clearly, and with appropriate references to the text.
+This allowed us to quickly ascertain that the perceived flaws actually arise from ambiguities in our notation rather than our analysis. 
+Please let us explain, and after consideration of our re-structuring/clarification of the analysis, please consider allowing us a full rebuttal.
+We will address what we feel are the most concerning statements about the mathematics here, in turn:
+\bigskip
+
+
+
+
+```{r, echo = FALSE}
+df<-read_csv(file = 'data.csv')
+```
+
+
+\noindent \textbf{``I also have severe problems with the mathematical development in the paper. 
+The equation defining $\alpha_g$ cannot be correct, except when $n = 1$, and $d = 2$, as RSI is defined based on SF2. 
+If $n = 1$ and $d = 2$ then it is clear that RSI is the predicted SF2, and $\alpha_g$ is the resulting alpha parameter to be used in the LQ model, assuming all the variability shows up as variability in $\alpha$, and none in $\beta$. 
+Why not state this?''}
+\bigskip
+\quad This is indeed worth stating, as we did in our Lancet Oncology paper. 
+We have yet to make any attempt at capturing changes in $\beta$, and therefore set it as a constant, and equal to a mean for a given disease site pulled from the literature. 
+This will be amended in future versions of the manuscript.
+Further, $\alpha_g$ is absolutely defined with $n=1$ and $d=2$ as the reviewer intuits. 
+This is the crux of the analysis: this parameter is derived from the genomics and the LQ-model (as a surrogate for SF2), and then is subsequently used to determine overall effect of repeated doses. 
+
+\begin{equation}
+\alpha_{g} = \frac{\ln \mathrm{RSI}}{-nd} -\beta d ,  
+\end{equation}
+
+\begin{equation}
+\alpha_{g} = \frac{\ln \mathrm{RSI}}{-(1)\mathrm{2Gy}} -\beta \, \mathrm{2Gy},  
+\end{equation}
+
+\smallskip
+
+\noindent \textbf{Code Excerpt:}
+
+>Here we show a snippet of the code where we calculate $\alpha_g$ for each patient and plot the distribution as a function of RSI. the rich heterogeneity of RSI is preserved, but transformed.
+The data points represent patients used in the analysis.
+
+```{r}
+n_e = 1
+d = 2
+beta = 0.05
+df <- mutate(df, alpha_g = log(RSI)/(-n_e*d) - beta*d)
+```
+
+```{r, echo = FALSE, fig.width=5, fig.height=2.5, fig.align="center"}
+ggplot(df,aes(x=RSI,y=alpha_g)) + geom_point(color=q[4],size=1.4) + 
+  #geom_line(color=q[4]) +
+  scale_x_continuous(expand = expansion(mult=0.01,add=0)) +
+  ylab(label = parse(text=TeX('$\\alpha_g$'))) + ggtitle("Figure 1") +
+  theme_light() + theme(plot.title = element_text(face="bold",size=10,hjust = .5))
+```
+
+
+\bigskip
+
+\noindent \textbf{``Another statement that simply cannot be true is this one (bottom, p. 3): "It is worth noting that in the case when a patient receives 2Gy fractions, the beta * d terms drop out, and GARD reduces to -ln(RSI)." 
+Yet RSI is a number that only depends on gene expression, and has nothing to do with dose, according to the first, un-numbered equation. 
+Dose can be anything, GARD presumably changes, yet must equal -ln(RSI)...?''}
+\bigskip
+\quad We thank the reviewer for pointing out this error in our exposition. 
+We intended to define a term ``GARD$_{2Gy}$'' here. 
+This is defined as the \textit{effect} of a 2Gy dose of radiation in terms of GARD.
+
+\begin{equation}
+\mathrm{GARD}_{2Gy} = nd(\alpha_g + \beta d),  
+\end{equation}
+
+\begin{equation}
+\mathrm{GARD}_{2Gy} = (1)\cdot \mathrm{2Gy}(\alpha_g + \beta \cdot \mathrm{2Gy}),  
+\end{equation}
+
+\begin{equation}
+\mathrm{GARD}_{2Gy} = \mathrm{2Gy}\left [\frac{-\ln \mathrm{RSI}}{\mathrm{2Gy}} -\beta \, \mathrm{2Gy} + \beta \, \mathrm{2Gy}  \right ] = -\ln \mathrm{RSI}.  
+\end{equation}
+
+For a clinical gard (which we will from here on denote GARD$_c$), one would have to scale this by the number of fractions given, so (assuming 2Gy fractions) this would yield 
+
+\begin{equation}
+\mathrm{GARD}_c = \frac{n_c}{n_e}(-\ln \mathrm{RSI}),  
+\end{equation}
+
+\noindent where $n_i$ where $i \in \{c, e\}$ is the number of doses given in the clinical scenario, and the experimental (by defintion 1) conditions. 
+By failing to define $n_c$ here, as we intended, we started what turned out to be a confusing chain of notational ambiguities which we believe led to misunderstanding our entire analysis.
+\bigskip
+
+\noindent \textbf{Code Excerpt:}
+
+>Here GARD$_c$ is calculated computationally as a function of treatment dose and individual  $\alpha_g$, with each point along the $x$-axis representing an individual patient. RSI is plotted underneath in order to demonstrate the relationship between between the two parameters.
+```{r}
+df <- mutate(df, GARD_c = n_c*d*(alpha_g + beta*d))
+```
+
+```{r, echo=FALSE}
+plotdf<-df %>% 
+  arrange(RSI) %>%
+  mutate(id = c(1:60)) %>%
+  pivot_longer(cols=c(clinical_dose, RSI, alpha_g, GARD_c),
+                    names_to = "param", values_to = "Value")
+```
+
+
+```{r,echo=FALSE,fig.width=7,fig.height=4,fig.align = 'center'}
+plot.top <- ggplot(filter(plotdf,param=="clinical_dose" | param=="GARD_c"),
+                   aes(x=id, y=Value, group=param, color=param)) + 
+  geom_point(size=.8) + 
+  geom_smooth(aes(fill=param), size=.6,
+              alpha=.15,method = lm, formula = y ~ splines::bs(x, 3),se = TRUE, show.legend = TRUE) +
+  scale_x_continuous(breaks = c(0,10,20,30,40,50,60),
+                     expand = expansion(mult = .01, add = 0)) + 
+  scale_y_continuous(name = "Dose (Gy)",limits = c(0,140), 
+                     sec.axis = dup_axis(name="GARD (no units)"),
+                     expand=expansion(mult=0.01,add=0)) +
+  scale_color_manual(values=q[c(2,1)]) +
+  scale_fill_manual(values=q[c(2,1)]) +
+  xlab("Pt Index") + theme_bw() + ggtitle("Figure 2") +
+  theme(legend.title = element_blank(), 
+        plot.margin = margin(10,10,0,10,"pt"),
+        legend.margin = margin(0,0,0,0, "pt"),
+        legend.key.size = unit(12,"pt"), 
+        plot.title = element_text(face="bold",size=10,hjust = .5))
+
+plot.bottom <- ggplot(data=filter(plotdf,param=="RSI"), # | param=="alpha_g"),
+                      aes(x=id, y=Value, group=param, color=param)) + 
+  geom_point(size=.8) + 
+  geom_smooth(aes(fill=param), size=.6,
+              alpha=.3,method = lm, formula = y ~ splines::bs(x, 3),se = TRUE, show.legend = TRUE) +
+  scale_x_continuous(breaks = c(0,10,20,30,40,50,60), expand = expansion(mult = .01, add = 0)) +
+  scale_y_continuous(trans = "reverse") +
+  scale_color_manual(values=q[c(6)]) +
+  scale_fill_manual(values=q[c(6)]) +
+  xlab("Pt Index") + ylab("RSI") + theme_bw() + 
+  theme(legend.title = element_blank(), plot.margin = margin(0,76,10,10,"pt"),
+        legend.margin = margin(0,0,0,0, "pt"), panel.grid.minor.y = element_blank(),
+        legend.key.size = unit(12,"pt"))
+
+grid.arrange(plot.top, plot.bottom, nrow = 2,heights = 3:2)
+
+```
+
+\bigskip
+
+\noindent \textbf{``For other reasons as well, the definition of GARD itself is confusing. 
+First of all, it does not have units of dose. 
+As the authors note that GARD has been presented before, I looked up that reference and got different definition of GARD: "The calculation for GARD is similar to biologically effective dose, except that patient-specific alpha is derived by substituting the radiosensitivity index for survival (S) in equation 1, where dose (d) is 2 Gy, n=1, and $\beta$ is a constant (0.05/Gy$^2$)."''}
+\bigskip
+\quad The reviewer is correct, GARD is unitless.
+We apologize for any confusion about the defintion of GARD. 
+In the previous paper, where the quote is derived, we hoped to capture the spirit of GARD, which is indeed \textit{similar} to BED, but not mathematically equivalent.
+Indeed, in the appendices, which we reference in the paragraph from where that quote is derived, the definition of GARD takes the same form we use here, which is the same form as \textit{biological Effect}: $E = nd(\alpha + \beta d)$, and subsequently GARD $= nd(\alpha_g + \beta d$).
+We do NOT use the formalism for BED, and, as the reviewer points out in the subsequent paragraph, this would yield `a very different kind of GARD'.
+So, utilizing our new, hopefully clearer, notation:
+
+\begin{eqnarray}
+\alpha_g = \frac{- \ln RSI}{n_e d} + \beta d \quad \mathrm{and, }\\ \nonumber \\
+\mathrm{GARD}_c = n_c d (\alpha_g + \beta d).
+\end{eqnarray}
+
+\bigskip
+\noindent \textbf{``Confusion extends to RxRSI, which is repeatedly called a biologically optimized dose, yet the definition in the paper of RxRSI is given as GARD / (alpha + beta * d), which by definition apparently always reduces to n *d. This equation obviously does not involve biology.''}
+\bigskip
+\quad The reviewer has caught the final, and most important error in our exposition.
+As written, the reviewer is entirely correct, we have essentially `cancelled out' any biology from the formalism.
+Luckily, our mathematical exposition here does not match our computation, which does NOT cancel the biology, and the solution to the exposition is as simple as introducing some new notation to clear up an ambiguity.
+The crux of the matter is that the GARD in the equation for RxRSI is a static number. 
+Please let us explain (of course, if allowed a full rebuttal/revision, this clarified exposition would become part of the manuscript, or at least the supplements).
+
+
+Once we derived GARD$_c$ for every individual patient in the cohort (i.e. using each individually derived $\alpha_g$ and the actual dose of radiation received: $n_c d$), we created a distribution.
+
+\noindent \textbf{Code Excerpt:}
+
+>The left plot below shows the Kaplan-Meier plot of the 60 patient cohort. The right side shows the kernel density estimate of the calculated GARD$_c$. 
+These are the same values shown in Figure 2 (top panel).
+```{r}
+km <- survfit(Surv(time,event) ~ 1, data = df)
+```
+
+```{r, echo=FALSE, fig.width=6, fig.height=3,fig.align = 'center'}
+km_tbl <- bind_cols(time=km$time, n.risk=km$n.risk, event=km$n.event, 
+                    censor=km$n.censor, surv=km$surv, std.err=km$std.err)
+
+km.all<-ggplot(km_tbl) + geom_step(aes(x=time,y=surv)) + 
+  scale_y_continuous(limits = c(0,1)) +
+  xlab("Time (yrs)") + ylab("Recurrence-Free Survival") + 
+  theme_bw() + theme(plot.title = element_text(face="bold",size=10,hjust = .8)) + ggtitle("Figure 3")
+
+kde<-ggplot(df,aes(x=GARD_c)) + geom_density(adjust = 1, color=rgb(.1,.2,.3)) + 
+  geom_histogram(aes(y=after_stat(density)),color=rgb(1,1,1,.2), 
+                 fill=rgb(.1,.4,.7,.3),binwidth=5) +
+  # geom_vline(xintercept=33, linetype='33') +
+  theme_light() +
+  scale_x_continuous(limits=c(0,80), expand = expansion(mult=0,add=0)) +
+  scale_y_continuous(expand = expansion(mult=0,add=0)) + ggtitle(" ")
+
+grid.arrange(km.all,kde,nrow=1)
+```
+
+This distribution was then used to find an optimal GARD threshold (GARD$_T$), which minimized the $p-$value of the Kaplan-Meier statistic using the clinical outcomes. 
+
+\noindent \textbf{Code Excerpt:}
+
+Cox proportional hazard models are shown below in order to briefly illustrate the relationship between GARD$_c$ and outcomes, first as a linear variate (table 1) and then with the derived threshold value (table 2).
+```{r, echo=FALSE}
+dd <- datadist(df)
+options(datadist='dd')
+```
+
+```{r}
+fit <- cph(Surv(time,event) ~ GARD_c, data = df,x = T, y= T )
+```
+
+\bigskip
+**Table 1**
+```{r,echo=FALSE, results='asis'}
+print(xtable(summary.fit(fit)),size = 14)
+```
+\bigskip
+
+```{r, echo=FALSE, fig.width = 4, fig.height=3,fig.align = 'center'}
+p <- Predict(fit, GARD_c = seq(0,80,by=1))
+
+ggplot(p) + geom_line(aes(x=GARD_c,y=yhat), size=.7,color=q[2]) + 
+  geom_ribbon(aes(x=GARD_c,ymin=lower,ymax=upper),
+              # color=rgb(.4,.4,.4), fill=rgb(.9,.9,.9,.4)
+              fill=rgb(.9,.9,.9),alpha=.1) + 
+  # geom_hline(yintercept=0, size=1, color=rgb(1,1,1)) +
+  geom_vline(xintercept = 33,linetype='33') +
+  annotate(geom="text",x = 35,y=2,label = 'bold(GARD_c)*bold(" = 33")',
+           hjust=0.05, size=3, parse=TRUE) +
+  scale_x_continuous(expand=expansion(mult=0,add=0)) + 
+  scale_y_continuous(expand=expansion(mult=0.03,add=0)) + 
+  theme_light() + theme(plot.title = element_text(face="bold",size=10,hjust = .5)) + ggtitle("Figure 4")
+```
+
+
+\smallskip
+
+```{r, results='asis'}
+fit <- cph(Surv(time,event) ~ GARD_c<33, data = df,x = T, y= T )
+```
+
+\bigskip
+**Table 2**
+```{r, echo=FALSE, results='asis'}
+print(xtable(summary.fit(fit)),size = 14)
+```
+\bigskip
+
+>The Kaplan-Meier curves below demonstrate the above described stratification with GARD$_T$ as applied to this patient cohort.
+```{r}
+km <- survfit(Surv(time,event) ~ GARD_c<33, data = df)
+```
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+km_tbl <- bind_cols(time=km$time, n.risk=km$n.risk, 
+                    event=km$n.event, censor=km$n.censor, 
+                    surv=km$surv, std.err=km$std.err)
+km_tbl$Strata = factor(c(rep('GARD_c>33',km$strata[1]), rep('GARD_c<33',km$strata[2])))
+
+ggplot(km_tbl) + geom_step(aes(x=time,y=surv,group=Strata, color=Strata)) + 
+  guides(color=guide_legend(reverse = TRUE)) +
+  xlab("Time (yrs)") + ylab("Recurrence-Free Survival") + 
+  theme_light() + theme(plot.title = element_text(face="bold",size=10,hjust = .5)) + ggtitle("Figure 5")
+```
+
+At this point, GARD$_T$ is a \textbf{set, static number: a target biological Effect to achieve through physical dosing}, it no longer has the $\alpha_g$ term in it.
+Therefore, when we define RxRSI, using GARD$_T$
+
+\begin{equation}
+\mathrm{RxRSI} = \frac{\mathrm{GARD}_T}{\alpha_g + \beta d},
+\end{equation}
+
+\noindent we are NOT cancelling out the biology, but actually reinserting it (note here also that the units of RxRSI are now Gy).
+For each patient, we ask what physical dose ($nd$), modulated by their biology (through $\alpha_g$) is needed to reach this \textbf{target effect (GARD$_T = 33$)}?
+This yields another opportunity for clarifying notation, by introducing $n_T$, a target number of doses.
+
+\begin{equation}
+\mathrm{RxRSI} = \frac{33}{\alpha_g + \beta d},
+\end{equation}
+
+\bigskip
+
+\noindent \textbf{Code Excerpt:}
+```{r, results='asis'}
+GARD_T = 33
+df <- mutate(df, RxRSI = GARD_T/(alpha_g + beta*d))
+```
+
+```{r, echo=FALSE}
+plotdf<-df %>% 
+  arrange(RSI) %>%
+  mutate(id = c(1:60)) %>%
+  pivot_longer(cols=c(clinical_dose,RSI, alpha_g, GARD_c, RxRSI),
+                    names_to = "param", values_to = "Value")
+```
+
+```{r, fig.width=7, echo = FALSE, fig.align = 'center'}
+top_panel <- ggplot(filter(plotdf,param=="clinical_dose" | param=="RxRSI"),
+                    aes(x=id, y=Value, group=param, color=param)) + 
+  geom_point(size=.8) + 
+  # geom_line(size=.4) + 
+  geom_smooth(aes(fill=param), size=.6,
+              alpha=.15,method = lm, formula = y ~ splines::bs(x, 3),se = TRUE, show.legend = TRUE) +
+  scale_x_continuous(breaks = c(0,10,20,30,40,50,60), expand = expansion(mult = .02, add = 0)) + 
+  scale_y_continuous(name = "Dose (Gy)", limits = c(0,110), sec.axis = dup_axis(name="RxRSI (Gy)"),
+                     expand = expansion(mult = 0, add = 0)) +
+  scale_color_manual(values=q[c(3,2)]) +
+  scale_fill_manual(values=q[c(3,2)]) +
+  xlab("Pt Index") + theme_bw() +
+  theme(legend.title = element_blank(), plot.margin = margin(10,10,0,10,"pt"),
+        legend.margin = margin(0,0,0,0, "pt"),
+         legend.key.size = unit(12,"pt"),
+        plot.title = element_text(face="bold",size=10,hjust = .5)) + ggtitle("Figure 6")
+
+bottom_panel <- ggplot(filter(plotdf, param=="RSI"), 
+                       aes(x=id, y=Value, group=param, color=param)) + 
+  geom_point(size=.8) + 
+  # geom_line(size=.4) + 
+  geom_smooth(aes(fill=param), size=.6,
+              alpha=.3,method = lm, formula = y ~ splines::bs(x, 3),se = TRUE, show.legend = TRUE) +
+  scale_x_continuous(breaks = c(0,10,20,30,40,50,60), expand = expansion(mult = .01, add = 0)) +
+  scale_color_manual(values=q[6]) +
+  scale_fill_manual(values=q[6]) +
+  xlab("Pt Index") + ylab("RSI") + theme_bw() + 
+  theme(legend.title = element_blank(), plot.margin = margin(0,76,10,10,"pt"),
+        legend.margin = margin(0,0,0,0, "pt"), panel.grid.minor.y = element_blank(), 
+        legend.key.size = unit(12,"pt"))
+
+grid.arrange(top_panel,bottom_panel, heights = 3:2)
+```
+
+
+In summary, we immensely the appreciate the careful and detailed reading of our manuscript, and apologize for the confusion surrounding our mathematical analysis.
+We contend, however, that the issues lay only in exposition, not in computation or conception.
+We hope that our clarifications here give you the confidence to allow us to perform a full revision.
+Please contact us with any questions.
+We are excited to help move the field toward true personalization, and realize that this can not be done by any one entity, but instead by a community of scientists standing on one anothers shoulders, and helping to advance one another's work.

@@ -26,7 +26,7 @@ r = rsi_df['0'].values
 d = 2
 beta = 0.05
 n = 1
-alpha_tcc = (np.log(r)+beta*n*(d**2))/(-n*d)
+alpha_tcc = np.log(r)/(-n*d) - beta*d
 gard_tcc_per_nd =  (alpha_tcc+beta*d)
 rxdose_tcc = np.array(33/(alpha_tcc+beta*d))
 

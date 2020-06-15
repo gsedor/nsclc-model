@@ -656,7 +656,7 @@ def update_slider_text(selected_rsi,selected_dose):
 
 def update_hist_figures(selected_rsi,selected_dose):
     rval = selected_rsi
-    alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
+    alpha_val = np.log(rval)/(-n*d)-beta*d
     rxdose_val = 33/(alpha_val+beta*d)
     dose_val = selected_dose
     gard_val = dose_val*(alpha_val+beta*d)
@@ -765,7 +765,7 @@ def update_hist_figures(selected_rsi,selected_dose):
 )
 def update_output_table_rsi_gard(selected_rsi,selected_dose):
     rval = np.round(selected_rsi,2)
-    alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
+    alpha_val = np.log(rval)/(-n*d)-beta*d
     rxdose_val = np.round(33/(alpha_val+beta*d),0)
     dose_val = selected_dose
     gard_val = np.round(dose_val*(alpha_val+beta*d),0)
@@ -791,7 +791,7 @@ def update_output_table_rsi_gard(selected_rsi,selected_dose):
 )
 def update_outcome_figure(selected_rsi,selected_dose,data):   #hdose,ldose,edose):
     rval = selected_rsi
-    alpha_val = (np.log(rval)+beta*n*(d**2))/(-n*d)
+    alpha_val = np.log(rval)/(-n*d)-beta*d
     rxdose_val = 33/(alpha_val+beta*d)
     dose_val = selected_dose
     gard_val = dose_val*(alpha_val+beta*d)
